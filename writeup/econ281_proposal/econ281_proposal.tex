@@ -1,0 +1,91 @@
+\documentclass[12pt]{article}
+\usepackage[final]{graphicx}
+\usepackage{rotating}
+\usepackage{setspace}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{breqn}
+\usepackage{optidef}
+\usepackage[utf8]{inputenc}
+\usepackage[style=authoryear, backend=biber]{biblatex}
+\addbibresource{blinder_weiss_project_bib.bib}
+\singlespacing
+
+\title{Econ 281 final project: Solving \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis} numerically and estimating with time use data}
+\author{Churn Ken Lee}
+\date{}
+\begin{document}
+\maketitle
+
+I aim to numerically solve a discrete-time version of the model in \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}, and then estimate the model using time use and labor market data.
+
+\section{Discrete-time version of \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}}
+Agents with finite lifespan $T$ maximize lifetime utility
+\begin{equation}
+    \sum_{t=0}^{T} \beta^t u(c_t, l_t) + B(A_{T+1})
+\end{equation}
+where $u(c_t, l_t)$ is their period utility over consumption and leisure, and $B(A_{T+1})$ is their preference for bequest of financial assets at end of life, $A_{T+1}$.
+They choose consumption path $\{ c_t \}_{t=0}^T $, leisure path $\{ l_t \}_{t=0}^T $, and earnings-investment path $\{ x_t \}_{t=0}^T $ subject to the evolution of financial assets,
+\begin{equation}
+    A_{t+1} = (1+r)*A_{t} + (1-l_{t})*g(x_t)*K_{t} - c_{t},
+\end{equation}
+and human capital,
+\begin{equation}
+    K_{t+1} = (1-\delta)*K_t + a*x_t*(1-l_t)*K_t,
+\end{equation}
+period time constraint
+\begin{equation}
+    l_t \in [0,1],
+\end{equation}
+and initial conditions $A_0, K_0$.
+
+The function $g(\cdot)$ has to satisfy several properties:
+\begin{enumerate}
+    \item $g(\cdot)$ is a concave, continuous, and decreasing function over the interval $[0,1]$ \label{labor_market_eqm}
+    \item $g'(0) < 0$ and $g'(1) > -\infty$ \label{g_corners}
+    \item $g(0) = 1$ and $g(1) = 0$ \label{normalization}
+\end{enumerate}
+Property \ref{g_corners} allows for the existence of corners $x_t = 0$ and $x_t = 1$ in the optimal path.
+For example, if $g'(0) = 0$, then no agent would choose $x = 0$ as a slightly higher $x$ would entail no decrease in wages but a positive amount of human capital accumulation.
+Property \ref{normalization} allows for interpreting $g(x)$ as the proportion of potential earnings capacity, $K$, that is realized with the choice of $x$.
+
+I chose a functional form for $g(x)$:
+\begin{equation}
+    g(x) = \frac{5}{4} - \left[ x* \left( \sqrt{\frac{5}{4}} - \frac{1}{2} \right) \right]^2.
+\end{equation}
+This form was chosen for simplicity, and not as an actual representation of the labor market equilibrium.
+
+\section{Solution strategy}
+I know the terminal value of the agent at $t = T$ given state $A_T, K_T$:
+\begin{equation}
+    V_T(A_T, K_T) = \max_{c_T, l_T} \left\{ u(c_T, l_T) + B(A_{T+1}) \right\}
+\end{equation}
+subject to
+\begin{equation}
+    A_{T+1} = (1+r)*A_{T} + (1-l_{T})*K_{T} - c_{T}.
+\end{equation}
+Since human capital after death, $K_{T+1}$, is not relevant for the agent, we know that $x_T = 0$ regardless of the choice of $l_T$.
+I compute $V_T(A_T, K_T)$ over a grid of values for $A_T$ and $K_T$ and obtain policy functions $c_T(A_T, K_T), l_T(A_T, K_T)$.
+I then interpolated $V_T(A_T, K_T)$ over those grid points using a bivariate cubic spline to obtain a continuous function of $V_T(A_T, K_T)$.
+
+The value of the agent at $t = T-1$ given state $A_{T-1}, K_{T-1}$ is
+\begin{equation}
+    V_{T-1}(A_{T-1}, K_{T-1}) = \max_{c_{T-1}, l_{T-1}, x_{T-1}} \left\{ u(c_{T-1}, l_{T-1}) + \beta*V_{T}(A_{T}, K_{T}) \right\}
+\end{equation}
+subject to
+\begin{equation}
+    A_{T} = (1+r)*A_{T-1} + (1-l_{T-1})*g(x_{T-1})*K_{T-1} - c_{T-1},
+\end{equation}
+\begin{equation}
+    K_{T} = (1-\delta)*K_{T-1} + a*x_{T-1}*(1-l_{T-1})*K_{T-1},
+\end{equation}
+\begin{equation}
+    l_{T-1} \in [0,1].
+\end{equation}
+Since I have $V_T(A_T, K_T)$, I can compute $V_{T-1}(A_{T-1}, K_{T-1})$, $c_{T-1}(A_{T-1}, K_{T-1})$, $l_T(A_{T-1}, K_{T-1})$, $x_T(A_{T-1}, K_{T-1})$ over a grid of values of $A_{T-1}$ and $K_{T-1}$.
+I interpolate $V_{T-1}(A_{T-1}, K_{T-1})$ over those grid points to obtain a continuous function $V_{T-1}(A_{T-1}, K_{T-1})$.
+I can then repeat the process for $t = T-2$ and so on, to eventually obtain the value function and policy functions for all $t$.
+
+\printbibliography
+\end{document}

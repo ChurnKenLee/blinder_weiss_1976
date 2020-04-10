@@ -1,0 +1,15 @@
+[0] Config.pm:304> INFO - This is Biber 2.12
+[0] Config.pm:307> INFO - Logfile is 'econ281_proposal.blg'
+[32] biber-MSWIN32:315> INFO - === 
+[87] Biber.pm:371> INFO - Reading 'econ281_proposal.bcf'
+[169] Biber.pm:889> INFO - Found 1 citekeys in bib section 0
+[181] Biber.pm:4093> INFO - Processing section 0
+[202] Biber.pm:4254> INFO - Looking for bibtex format file 'blinder_weiss_project_bib.bib' for section 0
+[209] bibtex.pm:1523> INFO - LaTeX decoding ...
+[218] bibtex.pm:1340> INFO - Found BibTeX data source 'blinder_weiss_project_bib.bib'
+[235] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[235] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[235] Biber.pm:3921> INFO - Sorting list 'nyt/global//global/global' of type 'entry' with template 'nyt' and locale 'en-US'
+[235] Biber.pm:3927> INFO - No sort tailoring available for locale 'en-US'
+[257] bbl.pm:636> INFO - Writing 'econ281_proposal.bbl' with encoding 'UTF-8'
+[258] bbl.pm:739> INFO - Output to econ281_proposal.bbl
