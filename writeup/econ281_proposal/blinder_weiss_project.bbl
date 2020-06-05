@@ -1,0 +1,804 @@
+% $ biblatex auxiliary file $
+% $ biblatex bbl format version 3.0 $
+% Do not modify the above lines!
+%
+% This is an auxiliary file used by the 'biblatex' package.
+% This file may safely be deleted. It will be recreated by
+% biber as required.
+%
+\begingroup
+\makeatletter
+\@ifundefined{ver@biblatex.sty}
+  {\@latex@error
+     {Missing 'biblatex' package}
+     {The bibliography requires the 'biblatex' package.}
+      \aftergroup\endinput}
+  {}
+\endgroup
+
+
+\refsection{0}
+  \datalist[entry]{nyt/global//global/global}
+    \entry{ben-porath_1976_human_capital_lifecycle_earnings}{article}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=0d20ffd869774ff13b7b6d99efbaed9d}{%
+           family={Ben-Porath},
+           familyi={B\bibinithyphendelim P\bibinitperiod},
+           given={Yoram},
+           giveni={Y\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {University of Chicago Press}%
+      }
+      \strng{namehash}{0d20ffd869774ff13b7b6d99efbaed9d}
+      \strng{fullhash}{0d20ffd869774ff13b7b6d99efbaed9d}
+      \strng{bibnamehash}{0d20ffd869774ff13b7b6d99efbaed9d}
+      \strng{authorbibnamehash}{0d20ffd869774ff13b7b6d99efbaed9d}
+      \strng{authornamehash}{0d20ffd869774ff13b7b6d99efbaed9d}
+      \strng{authorfullhash}{0d20ffd869774ff13b7b6d99efbaed9d}
+      \field{sortinit}{B}
+      \field{sortinithash}{276475738cc058478c1677046f857703}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{issn}{00223808, 1537534X}
+      \field{journaltitle}{Journal of Political Economy}
+      \field{number}{4}
+      \field{title}{The Production of Human Capital and the Life Cycle of Earnings}
+      \field{volume}{75}
+      \field{year}{1967}
+      \field{pages}{352\bibrangedash 365}
+      \range{pages}{14}
+      \verb{urlraw}
+      \verb http://www.jstor.org/stable/1828596
+      \endverb
+      \verb{url}
+      \verb http://www.jstor.org/stable/1828596
+      \endverb
+    \endentry
+    \entry{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}{article}{}
+      \name{author}{2}{}{%
+        {{uniquename=0,uniquepart=base,hash=c747dbf34ee9a12f5efc12158d6650c7}{%
+           family={Blinder},
+           familyi={B\bibinitperiod},
+           given={Alan\bibnamedelima S.},
+           giveni={A\bibinitperiod\bibinitdelim S\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=c527f3945bf9177d5a80c5f8e7faec84}{%
+           family={Weiss},
+           familyi={W\bibinitperiod},
+           given={Yoram},
+           giveni={Y\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {University of Chicago Press}%
+      }
+      \strng{namehash}{f2c574b0f8375a6946a5c37db55ddb6a}
+      \strng{fullhash}{f2c574b0f8375a6946a5c37db55ddb6a}
+      \strng{bibnamehash}{f2c574b0f8375a6946a5c37db55ddb6a}
+      \strng{authorbibnamehash}{f2c574b0f8375a6946a5c37db55ddb6a}
+      \strng{authornamehash}{f2c574b0f8375a6946a5c37db55ddb6a}
+      \strng{authorfullhash}{f2c574b0f8375a6946a5c37db55ddb6a}
+      \field{sortinit}{B}
+      \field{sortinithash}{276475738cc058478c1677046f857703}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{The joint determination of work and investment in human capital over the life cycle is analyzed. At low rates of impatience investment is decreasing throughout life, as in simpler models which assume hours of work to be fixed. The demand for leisure over the life cycle is "U shaped." Wages rise to a single peak which occurs after the peak in hours of work. Distinctly different patterns arise when the rate of impatience is high. Such individuals may prefer an increasing hours of work profile, and schooling need not be concentrated at the beginning of life. Conditions are provided to determine a critical level of time preference which is sufficient to induce a "normal" life-cycle pattern for investment and work.}
+      \field{issn}{00223808, 1537534X}
+      \field{journaltitle}{Journal of Political Economy}
+      \field{number}{3}
+      \field{title}{Human Capital and Labor Supply: A Synthesis}
+      \field{volume}{84}
+      \field{year}{1976}
+      \field{pages}{449\bibrangedash 472}
+      \range{pages}{24}
+      \verb{urlraw}
+      \verb http://www.jstor.org/stable/1829864
+      \endverb
+      \verb{url}
+      \verb http://www.jstor.org/stable/1829864
+      \endverb
+    \endentry
+    \entry{blundell_costa-dias_meghir_shaw_2016_female_lifecycle_labor_supply_education_human_capital_welfare}{article}{}
+      \name{author}{4}{}{%
+        {{uniquename=0,uniquepart=base,hash=201b803c1acac5e453b4e3a14b816b3b}{%
+           family={Blundell},
+           familyi={B\bibinitperiod},
+           given={Richard},
+           giveni={R\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=6441ff9b62e2116aa3ba8ecdcc419dae}{%
+           family={Costa\bibnamedelima Dias},
+           familyi={C\bibinitperiod\bibinitdelim D\bibinitperiod},
+           given={Monica},
+           giveni={M\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=99abebe08a1fa906efa0f91c83b579ff}{%
+           family={Meghir},
+           familyi={M\bibinitperiod},
+           given={Costas},
+           giveni={C\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=1e51275f26a65eceeff3708b039a646c}{%
+           family={Shaw},
+           familyi={S\bibinitperiod},
+           given={Jonathan},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{90a4ccf6b58d7a51c83f61412095db89}
+      \strng{fullhash}{32df6fe7852c946ab2e4883dc9206411}
+      \strng{bibnamehash}{90a4ccf6b58d7a51c83f61412095db89}
+      \strng{authorbibnamehash}{90a4ccf6b58d7a51c83f61412095db89}
+      \strng{authornamehash}{90a4ccf6b58d7a51c83f61412095db89}
+      \strng{authorfullhash}{32df6fe7852c946ab2e4883dc9206411}
+      \field{sortinit}{B}
+      \field{sortinithash}{276475738cc058478c1677046f857703}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We estimate a dynamic model of employment, human capital accumulation—including education, and savings for women in the United Kingdom, exploiting tax and benefit reforms, and use it to analyze the effects of welfare policy. We find substantial elasticities for labor supply and particularly for lone mothers. Returns to experience, which are important in determining the longer-term effects of policy, increase with education, but experience mainly accumulates when in full-time employment. Tax credits are welfare improving in the U.K., increase lone-mother labor supply and marginally reduce educational attainment, but the employment effects do not extend beyond the period of eligibility. Marginal increases in tax credits improve welfare more than equally costly increases in income support or tax cuts.}
+      \field{journaltitle}{Econometrica}
+      \field{number}{5}
+      \field{title}{Female Labor Supply, Human Capital, and Welfare Reform}
+      \field{volume}{84}
+      \field{year}{2016}
+      \field{pages}{1705\bibrangedash 1753}
+      \range{pages}{49}
+      \verb{doi}
+      \verb 10.3982/ECTA11576
+      \endverb
+      \verb{eprint}
+      \verb https://onlinelibrary.wiley.com/doi/pdf/10.3982/ECTA11576
+      \endverb
+      \verb{urlraw}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA11576
+      \endverb
+      \verb{url}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA11576
+      \endverb
+      \keyw{Life-cycle model,human capital,education,learning by doing,female labor supply,part time work,income tax,negative income tax,subsidies}
+    \endentry
+    \entry{browning_hansen_heckman_1999_micro_data_ge_models}{incollection}{}
+      \name{author}{3}{}{%
+        {{uniquename=0,uniquepart=base,hash=22c8ccb7ccdb636a1710ec29617de2b6}{%
+           family={Browning},
+           familyi={B\bibinitperiod},
+           given={Martin},
+           giveni={M\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=e1954df31fff05759fb382c941707eb0}{%
+           family={Hansen},
+           familyi={H\bibinitperiod},
+           given={Lars\bibnamedelima Peter},
+           giveni={L\bibinitperiod\bibinitdelim P\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=b70b920520f54634a1f03f9312707db2}{%
+           family={Heckman},
+           familyi={H\bibinitperiod},
+           given={James\bibnamedelima J.},
+           giveni={J\bibinitperiod\bibinitdelim J\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {Elsevier}%
+      }
+      \strng{namehash}{41048aa99a2af0c9c7c1927a6e4fbee5}
+      \strng{fullhash}{41048aa99a2af0c9c7c1927a6e4fbee5}
+      \strng{bibnamehash}{41048aa99a2af0c9c7c1927a6e4fbee5}
+      \strng{authorbibnamehash}{41048aa99a2af0c9c7c1927a6e4fbee5}
+      \strng{authornamehash}{41048aa99a2af0c9c7c1927a6e4fbee5}
+      \strng{authorfullhash}{41048aa99a2af0c9c7c1927a6e4fbee5}
+      \field{sortinit}{B}
+      \field{sortinithash}{276475738cc058478c1677046f857703}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Dynamic general equilibrium models are required to evaluate policies applied at the national level. To use these models to make quantitative forecasts requires knowledge of an extensive array of parameter values for the economy at large. This essay describes the parameters required for different economic models, assesses the discordance between the macromodels used in policy evaluation and the microeconomic models used to generate the empirical evidence. For concreteness, we focus on two general equilibrium models: the stochastic growth model extended to include some forms of heterogeneity and the overlapping generations model enriched to accommodate human capital formation.}
+      \field{issn}{1574-0048}
+      \field{series}{Handbook of Macroeconomics}
+      \field{title}{Chapter 8 Micro data and general equilibrium models}
+      \field{volume}{1}
+      \field{year}{1999}
+      \field{pages}{543\bibrangedash 633}
+      \range{pages}{91}
+      \verb{doi}
+      \verb https://doi.org/10.1016/S1574-0048(99)01011-3
+      \endverb
+      \verb{urlraw}
+      \verb http://www.sciencedirect.com/science/article/pii/S1574004899010113
+      \endverb
+      \verb{url}
+      \verb http://www.sciencedirect.com/science/article/pii/S1574004899010113
+      \endverb
+      \keyw{general equilibrium models,microeconomic evidence,stochastic growth model,overlapping generations model,calibration}
+    \endentry
+    \entry{casanova_2010_retirement_spouse}{article}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=3209fcabd58002682781bef5b71d5733}{%
+           family={Casanova},
+           familyi={C\bibinitperiod},
+           given={Maria},
+           giveni={M\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{3209fcabd58002682781bef5b71d5733}
+      \strng{fullhash}{3209fcabd58002682781bef5b71d5733}
+      \strng{bibnamehash}{3209fcabd58002682781bef5b71d5733}
+      \strng{authorbibnamehash}{3209fcabd58002682781bef5b71d5733}
+      \strng{authornamehash}{3209fcabd58002682781bef5b71d5733}
+      \strng{authorfullhash}{3209fcabd58002682781bef5b71d5733}
+      \field{sortinit}{C}
+      \field{sortinithash}{963e9d84a3da2344e8833203de5aed05}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Evidence from different sources shows that a signicant proportion of spouses retire within less than a year from each other, independently of the age difference between them. The existing reduced- form analyses of couples{’} retirement suggest that this is partly due to complementarities in spouses{’} tastes for leisure, which are present when one or both partners enjoy retirement more if the other is retired as well. In order to accurately estimate the role of leisure complementarities, it is essential to appropriately control for incentives to joint retirement acting through the household budget con- straint. This paper presents a structural, dynamic model of older couples{’} saving and participation decisions which allows for the complementarities in spouses{’} leisure and where the nancial incentives and uncertainty facing spouses are carefully modeled. Couples are heterogeneous in household wealth and spouses{’} wages, pension claims, and health status. They face uncertainty in earnings, medical costs, and survival. The model parameters are estimated using a sample of older individuals from the Health and Retirement Study. Estimation results show that leisure complementarities are positive for both husband and wife and account for up to 8 percent of observed joint retirements. The social security spousal benefit is found to account for an extra 13 percent of them. These results imply that incentives for joint retirement play a crucial role in determining individual choices. Since these incentives cannot be captured in a model that takes one spouse{’}s behavior as exogenous, this sug- gests that individual models of retirement are no longer an appropriate approximation of the average household{’}s behavior, given the increasing number of working couples approaching retirement age.}
+      \field{title}{Happy Together: A Structural Model of Couples{’} Joint Retirement Choices}
+      \field{year}{2010}
+      \verb{urlraw}
+      \verb http://www.econ.ucla.edu/casanova/Files/Casanova_joint_ret.pdf
+      \endverb
+      \verb{url}
+      \verb http://www.econ.ucla.edu/casanova/Files/Casanova_joint_ret.pdf
+      \endverb
+      \keyw{Retirement Planning and Satisfaction}
+    \endentry
+    \entry{fan_seshadri_taber_2012_lifetime_labor_supply_human_capital}{report}{}
+      \name{author}{3}{}{%
+        {{uniquename=0,uniquepart=base,hash=a472859e3adfbd3a64d08c5bbd3cf47a}{%
+           family={Fan},
+           familyi={F\bibinitperiod},
+           given={Xiaodong},
+           giveni={X\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=4a150c401256b1e090a7ab6684501923}{%
+           family={Seshadri},
+           familyi={S\bibinitperiod},
+           given={Ananth},
+           giveni={A\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=9c842a2a49822a4920ecf15df921a083}{%
+           family={Taber},
+           familyi={T\bibinitperiod},
+           given={Christopher},
+           giveni={C\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{institution}{1}{%
+        {ARC Centre of Excellence in Population Ageing Research}%
+      }
+      \strng{namehash}{e48f6d2bf8286eb6b5b5385b14ea8f0c}
+      \strng{fullhash}{e48f6d2bf8286eb6b5b5385b14ea8f0c}
+      \strng{bibnamehash}{e48f6d2bf8286eb6b5b5385b14ea8f0c}
+      \strng{authorbibnamehash}{e48f6d2bf8286eb6b5b5385b14ea8f0c}
+      \strng{authornamehash}{e48f6d2bf8286eb6b5b5385b14ea8f0c}
+      \strng{authorfullhash}{e48f6d2bf8286eb6b5b5385b14ea8f0c}
+      \field{sortinit}{F}
+      \field{sortinithash}{669c706c6f1fbf3b5a83d26f1d9e9e72}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{number}{2015/22}
+      \field{title}{{Lifetime labor supply and human capital investment}}
+      \field{type}{Working Paper}
+      \field{year}{2012}
+      \verb{urlraw}
+      \verb https://cepar.edu.au/publications/working-papers/estimation-life-cycle-model-human-capital-labor-supply-and-retirement
+      \endverb
+      \verb{url}
+      \verb https://cepar.edu.au/publications/working-papers/estimation-life-cycle-model-human-capital-labor-supply-and-retirement
+      \endverb
+    \endentry
+    \entry{french_2005_retirement_social_security}{article}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=5390653651b76118812d836185ae842b}{%
+           family={French},
+           familyi={F\bibinitperiod},
+           given={Eric},
+           giveni={E\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{5390653651b76118812d836185ae842b}
+      \strng{fullhash}{5390653651b76118812d836185ae842b}
+      \strng{bibnamehash}{5390653651b76118812d836185ae842b}
+      \strng{authorbibnamehash}{5390653651b76118812d836185ae842b}
+      \strng{authornamehash}{5390653651b76118812d836185ae842b}
+      \strng{authorfullhash}{5390653651b76118812d836185ae842b}
+      \field{sortinit}{F}
+      \field{sortinithash}{669c706c6f1fbf3b5a83d26f1d9e9e72}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{{This paper estimates a life cycle model of labour supply, retirement, and savings behaviour in which future health status and wages are uncertain. Individuals face a fixed cost of work and cannot borrow against future labour, pension, or Social Security income. The method of simulated moments is used to match the life cycle profiles of labour force participation, hours worked, and assets that are estimated from the data to those that are generated by the model. The model establishes that the tax structure of the Social Security system and pensions are key determinants of the high observed job exit rates at ages 62 and 65. Removing the tax wedge embedded in the Social Security earnings test for individuals aged 65 and older would delay job exit by almost one year. By contrast, Social Security benefit levels, health, and borrowing constraints are less important determinants of job exit at older ages. For example, reducing Social Security benefits by 20 would cause workers to delay exit from the labour force by only three months.}}
+      \field{issn}{0034-6527}
+      \field{journaltitle}{The Review of Economic Studies}
+      \field{month}{04}
+      \field{number}{2}
+      \field{title}{{The Effects of Health, Wealth, and Wages on Labour Supply and Retirement Behaviour}}
+      \field{volume}{72}
+      \field{year}{2005}
+      \field{pages}{395\bibrangedash 427}
+      \range{pages}{33}
+      \verb{doi}
+      \verb 10.1111/j.1467-937X.2005.00337.x
+      \endverb
+      \verb{eprint}
+      \verb https://academic.oup.com/restud/article-pdf/72/2/395/18333275/72-2-395.pdf
+      \endverb
+      \verb{urlraw}
+      \verb https://doi.org/10.1111/j.1467-937X.2005.00337.x
+      \endverb
+      \verb{url}
+      \verb https://doi.org/10.1111/j.1467-937X.2005.00337.x
+      \endverb
+    \endentry
+    \entry{french_jones_2011_retirement_health_insurance_medicare_social_security}{article}{}
+      \name{author}{2}{}{%
+        {{uniquename=0,uniquepart=base,hash=5390653651b76118812d836185ae842b}{%
+           family={French},
+           familyi={F\bibinitperiod},
+           given={Eric},
+           giveni={E\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=e2fed5eb13144cc930b6fcfc1534bdd3}{%
+           family={Jones},
+           familyi={J\bibinitperiod},
+           given={John\bibnamedelima Bailey},
+           giveni={J\bibinitperiod\bibinitdelim B\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{02ee12dc043050b8569622bd435dd20a}
+      \strng{fullhash}{02ee12dc043050b8569622bd435dd20a}
+      \strng{bibnamehash}{02ee12dc043050b8569622bd435dd20a}
+      \strng{authorbibnamehash}{02ee12dc043050b8569622bd435dd20a}
+      \strng{authornamehash}{02ee12dc043050b8569622bd435dd20a}
+      \strng{authorfullhash}{02ee12dc043050b8569622bd435dd20a}
+      \field{sortinit}{F}
+      \field{sortinithash}{669c706c6f1fbf3b5a83d26f1d9e9e72}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{This paper provides an empirical analysis of the effects of employer-provided health insurance, Medicare, and Social Security on retirement behavior. Using data from the Health and Retirement Study, we estimate a dynamic programming model of retirement that accounts for both saving and uncertain medical expenses. Our results suggest that Medicare is important for understanding retirement behavior, and that uncertainty and saving are both important for understanding the labor supply responses to Medicare. Half the value placed by a typical worker on his employer-provided health insurance is the value of reduced medical expense risk. Raising the Medicare eligibility age from 65 to 67 leads individuals to work an additional 0.074 years over ages 60–69. In comparison, eliminating 2 years worth of Social Security benefits increases years of work by 0.076 years.}
+      \field{journaltitle}{Econometrica}
+      \field{number}{3}
+      \field{title}{The Effects of Health Insurance and Self-Insurance on Retirement Behavior}
+      \field{volume}{79}
+      \field{year}{2011}
+      \field{pages}{693\bibrangedash 732}
+      \range{pages}{40}
+      \verb{doi}
+      \verb 10.3982/ECTA7560
+      \endverb
+      \verb{eprint}
+      \verb https://onlinelibrary.wiley.com/doi/pdf/10.3982/ECTA7560
+      \endverb
+      \verb{urlraw}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA7560
+      \endverb
+      \verb{url}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.3982/ECTA7560
+      \endverb
+      \keyw{Retirement behavior,saving,health insurance,Medicare}
+    \endentry
+    \entry{haley_1976_lifecycle_human_capital}{article}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=d6e95f2a2421ab0c10bd6d9b4f4d6333}{%
+           family={Haley},
+           familyi={H\bibinitperiod},
+           given={William\bibnamedelima J},
+           giveni={W\bibinitperiod\bibinitdelim J\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{d6e95f2a2421ab0c10bd6d9b4f4d6333}
+      \strng{fullhash}{d6e95f2a2421ab0c10bd6d9b4f4d6333}
+      \strng{bibnamehash}{d6e95f2a2421ab0c10bd6d9b4f4d6333}
+      \strng{authorbibnamehash}{d6e95f2a2421ab0c10bd6d9b4f4d6333}
+      \strng{authornamehash}{d6e95f2a2421ab0c10bd6d9b4f4d6333}
+      \strng{authorfullhash}{d6e95f2a2421ab0c10bd6d9b4f4d6333}
+      \field{sortinit}{H}
+      \field{sortinithash}{5f15a7bc777ad49ff15aa4d2831b1681}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{No abstract is available for this item.}
+      \field{journaltitle}{Econometrica}
+      \field{month}{11}
+      \field{number}{6}
+      \field{title}{{Estimation of the Earnings Profile from Optimal Human Capital Accumulation}}
+      \field{volume}{44}
+      \field{year}{1976}
+      \field{pages}{1223\bibrangedash 1238}
+      \range{pages}{16}
+      \verb{urlraw}
+      \verb https://ideas.repec.org/a/ecm/emetrp/v44y1976i6p1223-38.html
+      \endverb
+      \verb{url}
+      \verb https://ideas.repec.org/a/ecm/emetrp/v44y1976i6p1223-38.html
+      \endverb
+    \endentry
+    \entry{heckman_1976_lifecycle_human_capital_labor_supply}{article}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=b70b920520f54634a1f03f9312707db2}{%
+           family={Heckman},
+           familyi={H\bibinitperiod},
+           given={James\bibnamedelima J.},
+           giveni={J\bibinitperiod\bibinitdelim J\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {University of Chicago Press}%
+      }
+      \strng{namehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{fullhash}{b70b920520f54634a1f03f9312707db2}
+      \strng{bibnamehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{authorbibnamehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{authornamehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{authorfullhash}{b70b920520f54634a1f03f9312707db2}
+      \field{extraname}{1}
+      \field{sortinit}{H}
+      \field{sortinithash}{5f15a7bc777ad49ff15aa4d2831b1681}
+      \field{extradate}{1}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{issn}{00223808, 1537534X}
+      \field{journaltitle}{Journal of Political Economy}
+      \field{number}{4}
+      \field{title}{A Life-Cycle Model of Earnings, Learning, and Consumption}
+      \field{volume}{84}
+      \field{year}{1976}
+      \field{pages}{S9\bibrangedash S44}
+      \range{pages}{-1}
+      \verb{urlraw}
+      \verb http://www.jstor.org/stable/1831101
+      \endverb
+      \verb{url}
+      \verb http://www.jstor.org/stable/1831101
+      \endverb
+    \endentry
+    \entry{heckman_1976_estimate_human_capital_production_function}{inbook}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=b70b920520f54634a1f03f9312707db2}{%
+           family={Heckman},
+           familyi={H\bibinitperiod},
+           given={James\bibnamedelima J.},
+           giveni={J\bibinitperiod\bibinitdelim J\bibinitperiod},
+           givenun=0}}%
+      }
+      \name{bookauthor}{1}{}{%
+        {{hash=1a6ec1b102beec17e3449dcc744ca396}{%
+           family={Terleckyj},
+           familyi={T\bibinitperiod},
+           given={Nestor\bibnamedelima E.},
+           giveni={N\bibinitperiod\bibinitdelim E\bibinitperiod}}}%
+      }
+      \list{institution}{1}{%
+        {National Bureau of Economic Research}%
+      }
+      \list{publisher}{1}{%
+        {NBER}%
+      }
+      \strng{namehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{fullhash}{b70b920520f54634a1f03f9312707db2}
+      \strng{bibnamehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{authorbibnamehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{authornamehash}{b70b920520f54634a1f03f9312707db2}
+      \strng{authorfullhash}{b70b920520f54634a1f03f9312707db2}
+      \strng{bookauthorbibnamehash}{1a6ec1b102beec17e3449dcc744ca396}
+      \strng{bookauthornamehash}{1a6ec1b102beec17e3449dcc744ca396}
+      \strng{bookauthorfullhash}{1a6ec1b102beec17e3449dcc744ca396}
+      \field{extraname}{2}
+      \field{sortinit}{H}
+      \field{sortinithash}{5f15a7bc777ad49ff15aa4d2831b1681}
+      \field{extradate}{2}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{booktitle}{Household Production and Consumption}
+      \field{title}{Estimates of a Human Capital Production Function Embedded in a Life-Cycle Model of Labor Supply}
+      \field{type}{Book}
+      \field{year}{1976}
+      \field{pages}{225\bibrangedash 264}
+      \range{pages}{40}
+      \verb{urlraw}
+      \verb http://www.nber.org/chapters/c3963
+      \endverb
+      \verb{url}
+      \verb http://www.nber.org/chapters/c3963
+      \endverb
+    \endentry
+    \entry{imai_keane_2004_lifecycle_labor_supply_human_capital_accumulation}{article}{}
+      \name{author}{2}{}{%
+        {{uniquename=0,uniquepart=base,hash=27f3bf7ff97095fd2e114289b9e88548}{%
+           family={Imai},
+           familyi={I\bibinitperiod},
+           given={Susumu},
+           giveni={S\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=cc85af386098cb9c11d24d4ca26249ca}{%
+           family={Keane},
+           familyi={K\bibinitperiod},
+           given={Michael\bibnamedelima P.},
+           giveni={M\bibinitperiod\bibinitdelim P\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{fdd448d3b5e9387b574e039fb8969182}
+      \strng{fullhash}{fdd448d3b5e9387b574e039fb8969182}
+      \strng{bibnamehash}{fdd448d3b5e9387b574e039fb8969182}
+      \strng{authorbibnamehash}{fdd448d3b5e9387b574e039fb8969182}
+      \strng{authornamehash}{fdd448d3b5e9387b574e039fb8969182}
+      \strng{authorfullhash}{fdd448d3b5e9387b574e039fb8969182}
+      \field{sortinit}{I}
+      \field{sortinithash}{320bc8fe8101b9376f9f21cd507de0e8}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We solve and estimate a dynamic model that allows agents to optimally choose their labor hours and consumption and that allows for both human capital accumulation and savings. Estimation results and simulation exercises indicate that the intertemporal elasticity of substitution is much higher than the conventional estimates and the downward bias comes from the omission of the human capital accumulation effect. The human capital accumulation effect renders the life-cycle path of the shadow wage relatively flat, even though wages increase with age. Hence, a rather flat life-cycle labor supply path can be reconciled with a high intertemporal elasticity of substitution.}
+      \field{journaltitle}{International Economic Review}
+      \field{number}{2}
+      \field{title}{Intertemporal Labor Supply and Human Capital Accumulation*}
+      \field{volume}{45}
+      \field{year}{2004}
+      \field{pages}{601\bibrangedash 641}
+      \range{pages}{41}
+      \verb{doi}
+      \verb 10.1111/j.1468-2354.2004.00138.x
+      \endverb
+      \verb{eprint}
+      \verb https://onlinelibrary.wiley.com/doi/pdf/10.1111/j.1468-2354.2004.00138.x
+      \endverb
+      \verb{urlraw}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1468-2354.2004.00138.x
+      \endverb
+      \verb{url}
+      \verb https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1468-2354.2004.00138.x
+      \endverb
+    \endentry
+    \entry{manuelli_seshadri_shin_2012_lifetime_labor_supply_human_capital}{report}{}
+      \name{author}{3}{}{%
+        {{uniquename=0,uniquepart=base,hash=f8a0dfd9a2a123bab511437c96bc6cf9}{%
+           family={Manuelli},
+           familyi={M\bibinitperiod},
+           given={Rodolfo\bibnamedelima E.},
+           giveni={R\bibinitperiod\bibinitdelim E\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=4a150c401256b1e090a7ab6684501923}{%
+           family={Seshadri},
+           familyi={S\bibinitperiod},
+           given={Ananth},
+           giveni={A\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=650361d953fa030c26579098f1045521}{%
+           family={Shin},
+           familyi={S\bibinitperiod},
+           given={Yongseok},
+           giveni={Y\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{institution}{1}{%
+        {Federal Reserve Bank of St. Louis}%
+      }
+      \strng{namehash}{edafb18b79d31c77ef09c6b1a2db7592}
+      \strng{fullhash}{edafb18b79d31c77ef09c6b1a2db7592}
+      \strng{bibnamehash}{edafb18b79d31c77ef09c6b1a2db7592}
+      \strng{authorbibnamehash}{edafb18b79d31c77ef09c6b1a2db7592}
+      \strng{authornamehash}{edafb18b79d31c77ef09c6b1a2db7592}
+      \strng{authorfullhash}{edafb18b79d31c77ef09c6b1a2db7592}
+      \field{sortinit}{M}
+      \field{sortinithash}{cfd219b90152c06204fab207bc6c7cab}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{We develop a model of retirement and human capital investment to study the effects of tax and retirement policies. Workers choose the supply of raw labor (career length) and also the human capital embodied in their labor. Our model explains a significant fraction of the US-Europe difference in schooling and retirement. The model predicts that reforms of the European retirement policies modeled after the US can deliver 15-35 percent gains in per-worker output in the long run. Increased human capital investment in and out of school accounts for most of the gains, with relatively small changes in career length.}
+      \field{number}{2012-004}
+      \field{title}{{Lifetime labor supply and human capital investment}}
+      \field{type}{Working Papers}
+      \field{year}{2012}
+      \verb{urlraw}
+      \verb https://ideas.repec.org/p/fip/fedlwp/2012-004.html
+      \endverb
+      \verb{url}
+      \verb https://ideas.repec.org/p/fip/fedlwp/2012-004.html
+      \endverb
+      \keyw{Human capital; Labor supply; Retirement}
+    \endentry
+    \entry{prescott_rogerson_wallenius_2009_lifetime_aggregate_labor_supply_workweek_length_fixed_costs}{article}{}
+      \name{author}{3}{}{%
+        {{uniquename=0,uniquepart=base,hash=7c33f6de320158f1138eff5e1820c068}{%
+           family={Prescott},
+           familyi={P\bibinitperiod},
+           given={Edward\bibnamedelima C.},
+           giveni={E\bibinitperiod\bibinitdelim C\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=4809f0e670923c2316c5b86222442abe}{%
+           family={Rogerson},
+           familyi={R\bibinitperiod},
+           given={Richard},
+           giveni={R\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=264a5e70063a91ccb586e8b1b536763b}{%
+           family={Wallenius},
+           familyi={W\bibinitperiod},
+           given={Johanna},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{07dae877e28a6120f480e4c326eb4636}
+      \strng{fullhash}{07dae877e28a6120f480e4c326eb4636}
+      \strng{bibnamehash}{07dae877e28a6120f480e4c326eb4636}
+      \strng{authorbibnamehash}{07dae877e28a6120f480e4c326eb4636}
+      \strng{authornamehash}{07dae877e28a6120f480e4c326eb4636}
+      \strng{authorfullhash}{07dae877e28a6120f480e4c326eb4636}
+      \field{sortinit}{P}
+      \field{sortinithash}{8d51b3d5b78d75b54308d706b9bbe285}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{This paper studies lifetime aggregate labor supply with endogenous workweek length. Such a theory is needed to evaluate various government policies. A key feature of our model is a nonlinear mapping from hours worked to labor services. This gives rise to an endogenous workweek that can differ across occupations. The theory determines what fraction of the lifetime an individual works, not when. We find that constraints on workweek length have different consequences for total hours than for total labor services. Also, we find that policies designed to increase the length of the working life may not increase aggregate lifetime labor supply.}
+      \field{issn}{1094-2025}
+      \field{journaltitle}{Review of Economic Dynamics}
+      \field{number}{1}
+      \field{title}{Lifetime aggregate labor supply with endogenous workweek length}
+      \field{volume}{12}
+      \field{year}{2009}
+      \field{pages}{23\bibrangedash 36}
+      \range{pages}{14}
+      \verb{doi}
+      \verb https://doi.org/10.1016/j.red.2008.07.005
+      \endverb
+      \verb{urlraw}
+      \verb http://www.sciencedirect.com/science/article/pii/S1094202508000343
+      \endverb
+      \verb{url}
+      \verb http://www.sciencedirect.com/science/article/pii/S1094202508000343
+      \endverb
+      \keyw{Lifetime aggregate labor supply,Workweek length}
+    \endentry
+    \entry{rosen_1976_lifecycle_human_capital}{article}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=9ad40576acffeb7d769dc8b41f375d2b}{%
+           family={Rosen},
+           familyi={R\bibinitperiod},
+           given={Sherwin},
+           giveni={S\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {University of Chicago Press}%
+      }
+      \strng{namehash}{9ad40576acffeb7d769dc8b41f375d2b}
+      \strng{fullhash}{9ad40576acffeb7d769dc8b41f375d2b}
+      \strng{bibnamehash}{9ad40576acffeb7d769dc8b41f375d2b}
+      \strng{authorbibnamehash}{9ad40576acffeb7d769dc8b41f375d2b}
+      \strng{authornamehash}{9ad40576acffeb7d769dc8b41f375d2b}
+      \strng{authorfullhash}{9ad40576acffeb7d769dc8b41f375d2b}
+      \field{sortinit}{R}
+      \field{sortinithash}{da6b42bd3ab22fee61abed031ee405f7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{issn}{00223808, 1537534X}
+      \field{journaltitle}{Journal of Political Economy}
+      \field{number}{4}
+      \field{title}{A Theory of Life Earnings}
+      \field{volume}{84}
+      \field{year}{1976}
+      \field{pages}{S45\bibrangedash S67}
+      \range{pages}{-1}
+      \verb{urlraw}
+      \verb http://www.jstor.org/stable/1831102
+      \endverb
+      \verb{url}
+      \verb http://www.jstor.org/stable/1831102
+      \endverb
+    \endentry
+    \entry{rush_phelan_1997_labor_supply_incomplete_markets_social_security_medicare}{article}{}
+      \name{author}{2}{}{%
+        {{uniquename=0,uniquepart=base,hash=d21cb42e5da1f3188f3684e88b665332}{%
+           family={Rust},
+           familyi={R\bibinitperiod},
+           given={John},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=8a32cc76e8a41c938daea6106c3752b8}{%
+           family={Phelan},
+           familyi={P\bibinitperiod},
+           given={Christopher},
+           giveni={C\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{1}{%
+        {[Wiley, Econometric Society]}%
+      }
+      \strng{namehash}{234da443aac75f7b2bd5f22efee732a6}
+      \strng{fullhash}{234da443aac75f7b2bd5f22efee732a6}
+      \strng{bibnamehash}{234da443aac75f7b2bd5f22efee732a6}
+      \strng{authorbibnamehash}{234da443aac75f7b2bd5f22efee732a6}
+      \strng{authornamehash}{234da443aac75f7b2bd5f22efee732a6}
+      \strng{authorfullhash}{234da443aac75f7b2bd5f22efee732a6}
+      \field{sortinit}{R}
+      \field{sortinithash}{da6b42bd3ab22fee61abed031ee405f7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{This paper provides an empirical analysis of how the U.S. Social Security and Medicare insurance system affects the labor supply of older males in the presence of incomplete markets for loans, annuities, and health insurance. We estimate a dynamic programming (DP) model of the joint labor supply and Social Security acceptance decision, focusing on a sample of males in the low to middle income brackets whose only pension is Social Security. The DP model delivers a rich set of predictions about the dynamics of retirement behavior, and comparisons of actual vs. predicted behavior show that the DP model is able to account for a wide variety of phenomena observed in the data, including the pronounced peaks in the distribution of retirement ages at 62 and 65 (the ages of early and normal eligibility for Social Security benefits, respectively). We identify a significant fraction of "health insurance constrained" individuals who have no form of retiree health insurance other than Medicare, and who can only obtain fairly priced private health insurance via their employer's group health plan. The combination of significant individual risk aversion and a long tailed (Pareto) distribution of health care expenditures implies that there is a significant "security value" for these individuals to remain employed until they are eligible for Medicare coverage at age 65. Overall, our model suggests that a number of heretofore puzzling aspects of retirement behavior can be viewed as artifacts of particular details of the Social Security rules, whose incentive effects are especially strong for lower income individuals and those who do not have access to fairly priced loans, annuities, and health insurance.}
+      \field{issn}{00129682, 14680262}
+      \field{journaltitle}{Econometrica}
+      \field{number}{4}
+      \field{title}{How Social Security and Medicare Affect Retirement Behavior In a World of Incomplete Markets}
+      \field{volume}{65}
+      \field{year}{1997}
+      \field{pages}{781\bibrangedash 831}
+      \range{pages}{51}
+      \verb{urlraw}
+      \verb http://www.jstor.org/stable/2171940
+      \endverb
+      \verb{url}
+      \verb http://www.jstor.org/stable/2171940
+      \endverb
+    \endentry
+    \entry{shaw_1989_lifecycle_labor_supply_human_capital}{article}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=960725d3568c7e85e9021b09be30ca78}{%
+           family={Shaw},
+           familyi={S\bibinitperiod},
+           given={Kathryn\bibnamedelima L.},
+           giveni={K\bibinitperiod\bibinitdelim L\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{publisher}{2}{%
+        {[Economics Department of the University of Pennsylvania, Wiley, Institute of Social}%
+        {Economic Research, Osaka University]}%
+      }
+      \strng{namehash}{960725d3568c7e85e9021b09be30ca78}
+      \strng{fullhash}{960725d3568c7e85e9021b09be30ca78}
+      \strng{bibnamehash}{960725d3568c7e85e9021b09be30ca78}
+      \strng{authorbibnamehash}{960725d3568c7e85e9021b09be30ca78}
+      \strng{authornamehash}{960725d3568c7e85e9021b09be30ca78}
+      \strng{authorfullhash}{960725d3568c7e85e9021b09be30ca78}
+      \field{sortinit}{S}
+      \field{sortinithash}{322b1d5276f2f6c1bccdcd15920dbee6}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{A dynamic model of labor supply under uncertainty with endogenous human capital accumulation is developed and estimated using 1968-81 PSID male panel data. Given a learning-by-doing technology for human capital investment and a translog utility function, structural parameters for preferences and technology are estimated from the orthogonality conditions implied by the Euler equations assuming rational expectations. The parameter estimates conform to economic theory. Simulations of the model suggest that the intertemporal labor supply elasticity with endogeneous wages will rise over the life cycle, producing different policy implications than typical models having exogenous wages and constant intertemporal elasticities.}
+      \field{issn}{00206598, 14682354}
+      \field{journaltitle}{International Economic Review}
+      \field{number}{2}
+      \field{title}{Life-Cycle Labor Supply with Human Capital Accumulation}
+      \field{volume}{30}
+      \field{year}{1989}
+      \field{pages}{431\bibrangedash 456}
+      \range{pages}{26}
+      \verb{urlraw}
+      \verb http://www.jstor.org/stable/2526656
+      \endverb
+      \verb{url}
+      \verb http://www.jstor.org/stable/2526656
+      \endverb
+    \endentry
+  \enddatalist
+\endrefsection
+\endinput
+

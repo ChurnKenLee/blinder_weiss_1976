@@ -1,0 +1,17 @@
+[0] Config.pm:304> INFO - This is Biber 2.12
+[0] Config.pm:307> INFO - Logfile is 'blinder_weiss_project.blg'
+[29] biber-MSWIN32:315> INFO - === 
+[56] Biber.pm:371> INFO - Reading 'blinder_weiss_project.bcf'
+[139] Biber.pm:889> INFO - Found 17 citekeys in bib section 0
+[151] Biber.pm:4093> INFO - Processing section 0
+[163] Biber.pm:4254> INFO - Looking for bibtex format file 'blinder_weiss_project_bib.bib' for section 0
+[171] bibtex.pm:1523> INFO - LaTeX decoding ...
+[221] bibtex.pm:1340> INFO - Found BibTeX data source 'blinder_weiss_project_bib.bib'
+[237] Utils.pm:193> WARN - month field 'November' in entry 'haley_1976_lifecycle_human_capital' is not an integer - this will probably not sort properly.
+[316] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'normalization = NFD' with 'normalization = prenormalized'
+[317] UCollate.pm:68> INFO - Overriding locale 'en-US' defaults 'variable = shifted' with 'variable = non-ignorable'
+[317] Biber.pm:3921> INFO - Sorting list 'nyt/global//global/global' of type 'entry' with template 'nyt' and locale 'en-US'
+[317] Biber.pm:3927> INFO - No sort tailoring available for locale 'en-US'
+[337] bbl.pm:636> INFO - Writing 'blinder_weiss_project.bbl' with encoding 'UTF-8'
+[349] bbl.pm:739> INFO - Output to blinder_weiss_project.bbl
+[354] Biber.pm:110> INFO - WARNINGS: 1

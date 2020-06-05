@@ -1,0 +1,9 @@
+[0] Config.pm:304> INFO - This is Biber 2.12
+[0] Config.pm:307> INFO - Logfile is 'econ285_presentation.blg'
+[46] biber-MSWIN32:315> INFO - === 
+[116] Biber.pm:371> INFO - Reading 'econ285_presentation.bcf'
+[201] Biber.pm:889> INFO - Found 0 citekeys in bib section 0
+[207] Utils.pm:193> WARN - The file 'econ285_presentation.bcf' does not contain any citations!
+[213] bbl.pm:636> INFO - Writing 'econ285_presentation.bbl' with encoding 'UTF-8'
+[213] bbl.pm:739> INFO - Output to econ285_presentation.bbl
+[218] Biber.pm:110> INFO - WARNINGS: 1

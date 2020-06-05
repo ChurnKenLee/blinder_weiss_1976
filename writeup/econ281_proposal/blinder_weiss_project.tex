@@ -1,0 +1,159 @@
+\documentclass[12pt]{article}
+\usepackage[final]{graphicx}
+\usepackage{rotating}
+\usepackage{setspace}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{breqn}
+\usepackage{optidef}
+\usepackage[utf8]{inputenc}
+\usepackage[style=authoryear, backend=biber]{biblatex}
+\addbibresource{blinder_weiss_project_bib.bib}
+\singlespacing
+
+\title{Solving and estimating \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}}
+\author{Churn Ken Lee}
+\date{}
+\begin{document}
+\maketitle
+
+\section{Introduction}
+I want to estimate a model of lifecycle human capital investment and lifetime labor supply. To do so, I numerically solve a discrete-time version of the model in \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}, and then estimate the model using time use and labor market data.
+
+The canonical model of lifecycle human capital accumulation is the \textcite{ben-porath_1976_human_capital_lifecycle_earnings} model, and is used to explain patterns in wage growth over the lifecycle. 
+Some of the earliest empirical estimates of the model are \textcite{heckman_1976_estimate_human_capital_production_function}, \textcite{heckman_1976_lifecycle_human_capital_labor_supply}, \textcite{haley_1976_lifecycle_human_capital}, and \textcite{rosen_1976_lifecycle_human_capital}.
+\textcite{browning_hansen_heckman_1999_micro_data_ge_models} reviews this body of earlier work.
+These papers typically did not extend the model to include labor supply decisions, with the notable exception of \textcite{heckman_1976_estimate_human_capital_production_function} and \textcite{heckman_1976_lifecycle_human_capital_labor_supply}.
+However, even these do not try to model education or retirement decisions explicitly.
+
+Human capital accumulation can also be modelled as a process arising from learning-by-doing. 
+In these models, accumulation of human capital occurs exogenously, but only when agents are working.
+\textcite{shaw_1989_lifecycle_labor_supply_human_capital} is one of the first papers to empirically estimate such a model.
+She also incorporates a labor supply decision, but does not endogenize education or retirement.
+More recent work by \textcite{imai_keane_2004_lifecycle_labor_supply_human_capital_accumulation} and \textcite{blundell_costa-dias_meghir_shaw_2016_female_lifecycle_labor_supply_education_human_capital_welfare} endogenizes labor supply decisions, and the latter allows for discrete choices for education levels, but neither allow for endogenous retirement decisions.
+
+On the other hand, lifecycle labor supply models typically treat wages as exogenous when modelling the changes in hours worked over the lifecycle, including retirement.
+\textcite{rosen_1976_lifecycle_human_capital} model retirement decisions as arising from non-convexities in choice sets, while \textcite{prescott_rogerson_wallenius_2009_lifetime_aggregate_labor_supply_workweek_length_fixed_costs} uses fixed costs of employment.
+Many others explain features of late-in-life labor supply and retirement decisions as arising from features of social insurance programs (\textcite{rush_phelan_1997_labor_supply_incomplete_markets_social_security_medicare}, \textcite{french_2005_retirement_social_security}, \textcite{french_jones_2011_retirement_health_insurance_medicare_social_security}), or complementarities in spousal preferences for leisure (\textcite{casanova_2010_retirement_spouse}).
+
+There is not a lot of work trying to unify the two approaches.
+As previously mentioned, \textcite{heckman_1976_lifecycle_human_capital_labor_supply} and \textcite{heckman_1976_estimate_human_capital_production_function} extend the Ben-Porath model to include labor supply decisions, but do not include education or retirement.
+\textcite{fan_seshadri_taber_2012_lifetime_labor_supply_human_capital} and \textcite{manuelli_seshadri_shin_2012_lifetime_labor_supply_human_capital} extend the Ben-Porath model to include indivisible labor supply and retirement, but does not include endogenous education choice.
+
+The \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis} has many desirable features in this regard.
+It extends the Ben-Porath approach by endogenizing education, labor supply, and retirement decisions.
+The drawback is that allowing for continuous labor supply and human capital accumulation decisions is incredibly computationally demanding, as discussed in \textcite{imai_keane_2004_lifecycle_labor_supply_human_capital_accumulation}.
+
+\iffalse
+\section{Organize my thoughts}
+\subsection{Lifecycle human capital models}
+\begin{itemize}
+    \item \textcite{ben-porath_1976_human_capital_lifecycle_earnings}: canonical model, does not have labor supply decisions
+    \item \textcite{kuruscu_2006_lifecycle_training}
+    \item Early estimates of Ben-Porath: \textcite{rosen_1976_lifecycle_human_capital} and \textcite{haley_1976_lifecycle_human_capital}
+    \item Early empirical work reviewed in \textcite{browning_hansen_heckman_1999_micro_data_ge_models}
+    \item More recent estimate: \textcite{kuruscu_2006_lifecycle_training}
+\end{itemize}
+
+\subsection{Lifetime labor supply models}
+\begin{itemize}
+    \item Retirement literature assumes exogenous wage processes
+    \item \textcite{rogerson_wallenius_2013_retirement_nonconvexities}: Nonconvex choice sets
+    \item 
+\end{itemize}
+
+\subsection{Combination}
+\begin{itemize}
+    \item Ben-Porath + labor supply: \textcite{heckman_1976_lifecycle_human_capital_labor_supply} and \textcite{heckman_1976_estimate_human_capital_production_function} do not contain endogenous education or retirement decisions
+    \item \textcite{imai_keane_2004_lifecycle_labor_supply_human_capital_accumulation}: Learning-by-doing + lifecycle labor supply; does not have endogenous education or retirement
+    \item \textcite{keane_wolpin_1997_career_decisions_young_men}: Education (sort of), retirement, lifecycle labor supply, learning-by-doing: all discrete choices
+    \item \textcite{blundell_costa-dias_meghir_shaw_2016_female_lifecycle_labor_supply_education_human_capital_welfare}: Lifecycle labor supply + learning-by-doing, Discrete education choice, no retirement choice
+    \item Ben-Porath + labor supply: \textcite{manuelli_seshadri_shin_2012_lifetime_labor_supply_human_capital} and \textcite{fan_seshadri_taber_2012_lifetime_labor_supply_human_capital}, indivisible labor supply, no endogenous education choice
+    \item \textcite{shaw_1989_lifecycle_labor_supply_human_capital}: Learning-by-doing + lifecycle labor supply, first to estimate LBD model, no endogenous education or retirement
+\end{itemize}
+
+Key advantage of \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}: It integrates many of these features in one model.
+
+\subsection{Motivation}
+\begin{itemize}
+    \item Declining experience-wage profile for low-skilled relative to high-skilled
+    \item Selection means decline was actually larger?
+    \item Decrease in work-hours of low-skilled relative to high-skilled
+    \item Increase in retirement age gap
+    \item Decline in LFP among low-skilled relative to high-skilled
+    \item Non-participation among low-skilled and in-and-outs? In-and-outs are not increasing investment in human capital; most time goes to increased leisure
+    \item Reversal of flattening in recent years
+    \item Income, not wages
+    \item Blinder and Weiss generates experience-wage (and income) profile
+\end{itemize}
+
+\fi
+
+\section{Discrete-time version of \textcite{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}}
+Agents with finite lifespan $T$ maximize lifetime utility
+\begin{equation}
+    \sum_{t=0}^{T} \beta^t u(c_t, l_t) + B(A_{T+1})
+\end{equation}
+where $u(c_t, l_t)$ is their period utility over consumption and leisure, and $B(A_{T+1})$ is their preference for bequest of financial assets at end of life, $A_{T+1}$.
+They choose consumption path $\{ c_t \}_{t=0}^T $, leisure path $\{ l_t \}_{t=0}^T $, and earnings-investment path $\{ x_t \}_{t=0}^T $ subject to the evolution of financial assets,
+\begin{equation}
+    A_{t+1} = (1+r)*A_{t} + (1-l_{t})*g(x_t)*K_{t} - c_{t},
+\end{equation}
+and human capital,
+\begin{equation}
+    K_{t+1} = (1-\delta)*K_t + a*x_t*(1-l_t)*K_t,
+\end{equation}
+period time constraint
+\begin{equation}
+    l_t \in [0,1],
+\end{equation}
+and initial conditions $A_0, K_0$.
+
+The function $g(\cdot)$ has to satisfy several properties:
+\begin{enumerate}
+    \item $g(\cdot)$ is a concave, continuous, and decreasing function over the interval $[0,1]$ \label{labor_market_eqm}
+    \item $g'(0) < 0$ and $g'(1) > -\infty$ \label{g_corners}
+    \item $g(0) = 1$ and $g(1) = 0$ \label{normalization}
+\end{enumerate}
+Property \ref{g_corners} allows for the existence of corners $x_t = 0$ and $x_t = 1$ in the optimal path.
+For example, if $g'(0) = 0$, then no agent would choose $x = 0$ as a slightly higher $x$ would entail no decrease in wages but a positive amount of human capital accumulation. 
+The possibility of these corners is key to the model. If agents are sufficiently patient, they choose $x = 1$ in the early periods of their lives, which is interpreted as schooling.
+They will also choose $l = 1$ for the last periods of their lives, which is interpreted as retirement.
+Property \ref{normalization} allows for interpreting $g(x)$ as the proportion of potential earnings capacity, $K$, that is realized with the choice of $x$.
+
+The function $g(x)$ is a reduced form representation of labor market equilibrium outcomes. This is similar to one interpretation of the training vs earning choice in \textcite{ben-porath_1976_human_capital_lifecycle_earnings}, whereby jobs that provide more training pay lower wages. One difference is that here the concavity is in the tradeoff and the production function for human capital is linear, while in \textcite{ben-porath_1976_human_capital_lifecycle_earnings} the tradeoff is linear and the production function is concave.
+
+\section{Solution strategy I am currently working on}
+I know the terminal value of the agent at $t = T$ given state $A_T, K_T$:
+\begin{equation}
+    V_T(A_T, K_T) = \max_{c_T, l_T} \left\{ u(c_T, l_T) + B(A_{T+1}) \right\}
+\end{equation}
+subject to
+\begin{equation}
+    A_{T+1} = (1+r)*A_{T} + (1-l_{T})*K_{T} - c_{T}.
+\end{equation}
+Since human capital after death, $K_{T+1}$, is not relevant for the agent, we know that $x_T = 0$ regardless of the choice of $l_T$.
+I compute $V_T(A_T, K_T)$ over a grid of values for $A_T$ and $K_T$ and obtain policy functions $c_T(A_T, K_T), l_T(A_T, K_T)$.
+I then interpolated $V_T(A_T, K_T)$ over those grid points using a bivariate cubic spline to obtain a continuous function of $V_T(A_T, K_T)$.
+
+The value of the agent at $t = T-1$ given state $A_{T-1}, K_{T-1}$ is
+\begin{equation}
+    V_{T-1}(A_{T-1}, K_{T-1}) = \max_{c_{T-1}, l_{T-1}, x_{T-1}} \left\{ u(c_{T-1}, l_{T-1}) + \beta*V_{T}(A_{T}, K_{T}) \right\}
+\end{equation}
+subject to
+\begin{equation}
+    A_{T} = (1+r)*A_{T-1} + (1-l_{T-1})*g(x_{T-1})*K_{T-1} - c_{T-1},
+\end{equation}
+\begin{equation}
+    K_{T} = (1-\delta)*K_{T-1} + a*x_{T-1}*(1-l_{T-1})*K_{T-1},
+\end{equation}
+\begin{equation}
+    l_{T-1} \in [0,1].
+\end{equation}
+Since I have $V_T(A_T, K_T)$, I can compute $V_{T-1}(A_{T-1}, K_{T-1})$, $c_{T-1}(A_{T-1}, K_{T-1})$, $l_T(A_{T-1}, K_{T-1})$, $x_T(A_{T-1}, K_{T-1})$ over a grid of values of $A_{T-1}$ and $K_{T-1}$.
+I interpolate $V_{T-1}(A_{T-1}, K_{T-1})$ over those grid points to obtain a continuous function $V_{T-1}(A_{T-1}, K_{T-1})$.
+I can then repeat the process for $t = T-2$ and so on, to eventually obtain the value function and policy functions for all $t$.
+
+\printbibliography
+\end{document}
