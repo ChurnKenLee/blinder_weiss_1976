@@ -19,6 +19,65 @@
 
 \refsection{0}
   \datalist[entry]{nyt/global//global/global}
+    \entry{aguair_bils_charles_hurst_2017_WP_video_games_labor_supply}{report}{}
+      \name{author}{4}{}{%
+        {{uniquename=0,uniquepart=base,hash=1827ce71bb4011d04e70d63586e77e46}{%
+           family={Aguiar},
+           familyi={A\bibinitperiod},
+           given={Mark},
+           giveni={M\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=3d15ea69f75fe3bf4e204cf5202fb21e}{%
+           family={Bils},
+           familyi={B\bibinitperiod},
+           given={Mark},
+           giveni={M\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=2deff0eb8eeb0531abaa80f8f1712e6d}{%
+           family={Charles},
+           familyi={C\bibinitperiod},
+           given={Kerwin\bibnamedelima Kofi},
+           giveni={K\bibinitperiod\bibinitdelim K\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=16394f90e8368a216f97df9cde438f87}{%
+           family={Hurst},
+           familyi={H\bibinitperiod},
+           given={Erik},
+           giveni={E\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{institution}{1}{%
+        {National Bureau of Economic Research}%
+      }
+      \strng{namehash}{2a999f391f3cc1a0d0bcfdcfc52849cf}
+      \strng{fullhash}{a0bb1f1aabf17fb5e7ff2f22c25795f8}
+      \strng{bibnamehash}{2a999f391f3cc1a0d0bcfdcfc52849cf}
+      \strng{authorbibnamehash}{2a999f391f3cc1a0d0bcfdcfc52849cf}
+      \strng{authornamehash}{2a999f391f3cc1a0d0bcfdcfc52849cf}
+      \strng{authorfullhash}{a0bb1f1aabf17fb5e7ff2f22c25795f8}
+      \field{sortinit}{A}
+      \field{sortinithash}{d77c7cdd82ff690d4c3ef13216f92f0b}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{abstract}{Younger men, ages 21 to 30, exhibited a larger decline in work hours over the last fifteen years than older men or women. Since 2004, time-use data show that younger men distinctly shifted their leisure to video gaming and other recreational computer activities. We propose a framework to answer whether improved leisure technology played a role in reducing younger men's labor supply. The starting point is a leisure demand system that parallels that often estimated for consumption expenditures. We show that total leisure demand is especially sensitive to innovations in leisure luxuries, that is, activities that display a disproportionate response to changes in total leisure time. We estimate that gaming/recreational computer use is distinctly a leisure luxury for younger men. Moreover, we calculate that innovations to gaming/recreational computing since 2004 explain on the order of half the increase in leisure for younger men, and predict a decline in market hours of 1.5 to 3.0 percent, which is 38 and 79 percent of the differential decline relative to older men.}
+      \field{month}{6}
+      \field{number}{23552}
+      \field{series}{Working Paper Series}
+      \field{title}{Leisure Luxuries and the Labor Supply of Young Men}
+      \field{type}{Working Paper}
+      \field{year}{2017}
+      \verb{doi}
+      \verb 10.3386/w23552
+      \endverb
+      \verb{urlraw}
+      \verb http://www.nber.org/papers/w23552
+      \endverb
+      \verb{url}
+      \verb http://www.nber.org/papers/w23552
+      \endverb
+    \endentry
     \entry{ben-porath_1976_human_capital_lifecycle_earnings}{article}{}
       \name{author}{1}{}{%
         {{uniquename=0,uniquepart=base,hash=0d20ffd869774ff13b7b6d99efbaed9d}{%
@@ -56,6 +115,51 @@
       \endverb
       \verb{url}
       \verb http://www.jstor.org/stable/1828596
+      \endverb
+    \endentry
+    \entry{binder_bound_2019_JEP_declining_LFP_less_educated}{article}{}
+      \name{author}{2}{}{%
+        {{uniquename=0,uniquepart=base,hash=959330f6fb13aa63e947935240fda038}{%
+           family={Binder},
+           familyi={B\bibinitperiod},
+           given={Ariel\bibnamedelima J.},
+           giveni={A\bibinitperiod\bibinitdelim J\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=206a431f3c3d7796c2f18f2c019cee45}{%
+           family={Bound},
+           familyi={B\bibinitperiod},
+           given={John},
+           giveni={J\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{a642d8a43ed088655c13c30027a058c0}
+      \strng{fullhash}{a642d8a43ed088655c13c30027a058c0}
+      \strng{bibnamehash}{a642d8a43ed088655c13c30027a058c0}
+      \strng{authorbibnamehash}{a642d8a43ed088655c13c30027a058c0}
+      \strng{authornamehash}{a642d8a43ed088655c13c30027a058c0}
+      \strng{authorfullhash}{a642d8a43ed088655c13c30027a058c0}
+      \field{sortinit}{B}
+      \field{sortinithash}{276475738cc058478c1677046f857703}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Journal of Economic Perspectives}
+      \field{month}{5}
+      \field{number}{2}
+      \field{title}{The Declining Labor Market Prospects of Less-Educated Men}
+      \field{volume}{33}
+      \field{year}{2019}
+      \field{pages}{163\bibrangedash 90}
+      \range{pages}{31}
+      \verb{doi}
+      \verb 10.1257/jep.33.2.163
+      \endverb
+      \verb{urlraw}
+      \verb https://www.aeaweb.org/articles?id=10.1257/jep.33.2.163
+      \endverb
+      \verb{url}
+      \verb https://www.aeaweb.org/articles?id=10.1257/jep.33.2.163
       \endverb
     \endentry
     \entry{blinder_weiss_1976_lifecycle_human_capital_labor_supply_synthesis}{article}{}
@@ -251,6 +355,51 @@
       \verb http://www.econ.ucla.edu/casanova/Files/Casanova_joint_ret.pdf
       \endverb
       \keyw{Retirement Planning and Satisfaction}
+    \endentry
+    \entry{elsby_shapiro_2012_AER_trend_growth_employment}{article}{}
+      \name{author}{2}{}{%
+        {{uniquename=0,uniquepart=base,hash=8870028ea8d2e89a4230154522f956b1}{%
+           family={Elsby},
+           familyi={E\bibinitperiod},
+           given={Michael\bibnamedelimb W.\bibnamedelimi L.},
+           giveni={M\bibinitperiod\bibinitdelim W\bibinitperiod\bibinitdelim L\bibinitperiod},
+           givenun=0}}%
+        {{uniquename=0,uniquepart=base,hash=8ce522cdce2f9302749e9ca11a140cf6}{%
+           family={Shapiro},
+           familyi={S\bibinitperiod},
+           given={Matthew\bibnamedelima D.},
+           giveni={M\bibinitperiod\bibinitdelim D\bibinitperiod},
+           givenun=0}}%
+      }
+      \strng{namehash}{345673b275fac59a35b6eba8927c88ee}
+      \strng{fullhash}{345673b275fac59a35b6eba8927c88ee}
+      \strng{bibnamehash}{345673b275fac59a35b6eba8927c88ee}
+      \strng{authorbibnamehash}{345673b275fac59a35b6eba8927c88ee}
+      \strng{authornamehash}{345673b275fac59a35b6eba8927c88ee}
+      \strng{authorfullhash}{345673b275fac59a35b6eba8927c88ee}
+      \field{sortinit}{E}
+      \field{sortinithash}{f615fb9c6fba11c6f962fb3fd599810e}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{American Economic Review}
+      \field{month}{6}
+      \field{number}{4}
+      \field{title}{Why Does Trend Growth Affect Equilibrium Employment? A New Explanation of an Old Puzzle}
+      \field{volume}{102}
+      \field{year}{2012}
+      \field{pages}{1378\bibrangedash 1413}
+      \range{pages}{36}
+      \verb{doi}
+      \verb 10.1257/aer.102.4.1378
+      \endverb
+      \verb{urlraw}
+      \verb https://www.aeaweb.org/articles?id=10.1257/aer.102.4.1378
+      \endverb
+      \verb{url}
+      \verb https://www.aeaweb.org/articles?id=10.1257/aer.102.4.1378
+      \endverb
     \endentry
     \entry{fan_seshadri_taber_2012_lifetime_labor_supply_human_capital}{report}{}
       \name{author}{3}{}{%
@@ -755,6 +904,41 @@
       \endverb
       \verb{url}
       \verb http://www.jstor.org/stable/2171940
+      \endverb
+    \endentry
+    \entry{rutledge_2018_retirement_age_gap_education}{report}{}
+      \name{author}{1}{}{%
+        {{uniquename=0,uniquepart=base,hash=87e4756d1a4f2f18429948c481eb08f3}{%
+           family={Rutledge},
+           familyi={R\bibinitperiod},
+           given={Matthew\bibnamedelima S.},
+           giveni={M\bibinitperiod\bibinitdelim S\bibinitperiod},
+           givenun=0}}%
+      }
+      \list{institution}{1}{%
+        {Center for Retirement Research at Boston College}%
+      }
+      \strng{namehash}{87e4756d1a4f2f18429948c481eb08f3}
+      \strng{fullhash}{87e4756d1a4f2f18429948c481eb08f3}
+      \strng{bibnamehash}{87e4756d1a4f2f18429948c481eb08f3}
+      \strng{authorbibnamehash}{87e4756d1a4f2f18429948c481eb08f3}
+      \strng{authornamehash}{87e4756d1a4f2f18429948c481eb08f3}
+      \strng{authorfullhash}{87e4756d1a4f2f18429948c481eb08f3}
+      \field{sortinit}{R}
+      \field{sortinithash}{da6b42bd3ab22fee61abed031ee405f7}
+      \field{extradatescope}{labelyear}
+      \field{labeldatesource}{year}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{number}{18-10}
+      \field{title}{{What Explains the Widening Gap in Retirement Ages by Education?}}
+      \field{type}{Brief}
+      \field{year}{2018}
+      \verb{urlraw}
+      \verb https://crr.bc.edu/briefs/what-explains-the-widening-gap-in-retirement-ages-by-education/
+      \endverb
+      \verb{url}
+      \verb https://crr.bc.edu/briefs/what-explains-the-widening-gap-in-retirement-ages-by-education/
       \endverb
     \endentry
     \entry{shaw_1989_lifecycle_labor_supply_human_capital}{article}{}
