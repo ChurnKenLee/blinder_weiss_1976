@@ -224,6 +224,145 @@
 
 \end{frame}
 
+\begin{frame}
+    \frametitle{HJB}
 
+    The HJB equation for the agent's problem is
+    \begin{align*}
+        \rho V(A, K, t) = \max_{c, h, x} \quad &u(c, 1-h) \\
+        &+ \partial_A V(A, K, t) \left[rA + h g(x) K - c \right] \\
+        &+ \partial_K V(A, K, t) \left[-\delta K + x h K \right] \\
+        &+ \partial_t V(A, K, t)
+    \end{align*}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Finite difference approximation of the HJB}
+
+    \begin{wideitemize}
+        \item $nA$ and $nK$ are the number of grid points for $A$ and $K$
+        \item Denote the index for $A$ and $K$ as $i$ and $j$ respectively
+        \item Denote $V(A_i, K_j, t) = V_{ij}^t$
+        \item Denote drift in $A$ as $\mu_A$, drift in $K$ as $\mu_K$
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Forward and backward difference approximation}
+
+    \begin{wideitemize}
+        \item Forward difference:
+        \begin{align*}
+            \partial_A^F V_{i,j}^t &= \frac{V_{i+1, j}^t - V_{i, j}^t}{\Delta A}, \\
+            \partial_K^F V_{i,j}^t &= \frac{V_{i, j+1}^t - V_{i, j}^t}{\Delta A},
+        \end{align*}
+        \item Backward difference:
+        \begin{align*}
+            \partial_A^B V_{i,j}^t &= \frac{V_{i, j}^t - V_{i-1, j}^t}{\Delta A}, \\
+            \partial_K^B V_{i,j}^t &= \frac{V_{i, j}^t - V_{i, j-1}^t}{\Delta A},
+        \end{align*}
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Choice of forward or backward difference}
+
+    \begin{wideitemize}
+        \item Drift of state variables determined using FOCs
+        \begin{align}
+            \partial_c u(c_{i,j}^t, h_{i,j}^t) &= \partial_A V_{i,j}^t \\
+            \partial_h u(c_{i,j}^t, h_{i,j}^t) &= \partial_A V_{i,j}^t \left[ g(x_{i, j}^t) K \right] + \partial_K V_{i,j}^t \left[ x_{i, j}^t K \right] \\
+            0 &= \partial_A V_{i,j}^t \left[ h g'(x_{i, j}^t) K \right] + \partial_K V_{i,j}^t \left[ h K \right]
+        \end{align}
+        \item Constraints:
+        \begin{align}
+            0 \leq h \leq 1 \\
+            0 \leq x \leq 1
+        \end{align}
+        \item If $mu_A > 0$, use $\partial_A^F V_{i,j}^t$, if $mu_A < 0$, use $\partial_A^B V_{i,j}^t$; same for $K$
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Choice of forward or backward difference}
+
+    \begin{wideitemize}
+        \item Denote drift in $A$ computed using forward difference in $A$ and backward difference in $K$ as $\mu_A^{FK}$
+        \item Choose approximation scheme that is consistent with computed drift, e.g., choose scheme $FB$ if $\mu_A^{FB}>0$ and $\mu_K^{FB}<0$
+        \item Three potential ambiguous cases: steady-state, boundary condition, tie-breaking
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Steady-state}
+
+    \begin{wideitemize}
+        \item Steady-state in one dimension, e.g., $A$ is consistent in the forward dimension, but $K$ is inconsistent
+        \item $\mu_A^{FF} > 0$ and $\mu_A^{FB} > 0$, and $\mu_K^{FF} < 0$ and $\mu_K^{FB} > 0$, then set $K$ to be steady-state
+        \item Do so by setting $\partial_K V_{i,j}^t$ such that $\mu_K = 0$
+        \item Steady-state in both dimension, so both $A$ and $K$ are inconsistent
+        \item Do so by setting $\partial_A V_{i,j}^t$ and $\partial_K V_{i,j}^t$ such that $\mu_A = 0$ and $\mu_K = 0$
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Boundary condition}
+
+    \begin{wideitemize}
+        \item Issue: drift of state variable cannot send state outside of boundary, both computational and theoretical
+        \item e.g., borrowing constraint $\bar{A}$
+        \item If $\mu_A^{FF} < 0$ and $\mu_A^{FB} < 0$, then the drift sends $A$ below $\bar{A}$
+        \item Set $\partial_A V_{i,j}^t$ at $\bar{A}$ such that $\mu_A^{FF} = 0$ if $K$ is forward consistent and $\mu_A^{FB} = 0$ if $K$ is backward consistent
+        \item Note: possible to have steady-state in $K$ when at $A$ boundary, and vice versa
+        \item In the former case, $K$ is inconsistent at $A$ boundary
+    \end{wideitemize}
+
+\end{frame}
+
+
+
+\begin{frame}
+    \frametitle{Tie-breaking}
+
+    \begin{wideitemize}
+        \item Issue: approximation is consistent in both forwards and backwards direction
+        \item Solution: choose approximation that leads to larger Hamiltonian value
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Current computational issues}
+
+    \begin{wideitemize}
+        \item Proving my algorithm satisfies the three conditions of Barles and Souganidis (1991) (monotonicity, consistency, stability)
+        \item Need to check for tie-breaking issues within "boundary condition" and "steady-state"
+        \item Speed up computation by consolidating ambiguous case checkers
+        \item Fix terminal condition spike
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Path of choice variables}
+    
+        \includegraphics[width=0.49\textwidth]{../output/phases.png}
+        \includegraphics[width=0.49\textwidth]{../output/fd_hjb_choice_path.pdf}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Path of state variables}
+    
+        \includegraphics[width=0.49\textwidth]{../output/phases.png}
+        \includegraphics[width=0.49\textwidth]{../output/fd_hjb_state_path.pdf}
+
+\end{frame}
 
 \end{document}

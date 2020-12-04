@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.14159265-2.6-1.40.19 (TeX Live 2018/W32TeX) (preloaded format=pdflatex 2019.4.4)  28 MAY 2020 14:13
+This is pdfTeX, Version 3.14159265-2.6-1.40.19 (TeX Live 2018/W32TeX) (preloaded format=pdflatex 2019.4.4)  30 NOV 2020 10:58
 entering extended mode
  restricted \write18 enabled.
  file:line:error style messages enabled.
@@ -1279,7 +1279,49 @@ Package pdftex.def Info: ../output/phases.png  used on input line 206.
 
  <../output/phases.png>] [15
 
+] [16
+
+] [17
+
+] [18
+
+] [19
+
+] [20
+
+] [21
+
+] [22
+
+] [23
+
+] [24
+
 ]
+File: ../output/phases.png Graphic file (type png)
+<use ../output/phases.png>
+Package pdftex.def Info: ../output/phases.png  used on input line 358.
+(pdftex.def)             Requested size: 195.1881pt x 177.25272pt.
+<../output/fd_hjb_choice_path.pdf, id=185, 373.50166pt x 249.44379pt>
+File: ../output/fd_hjb_choice_path.pdf Graphic file (type pdf)
+<use ../output/fd_hjb_choice_path.pdf>
+Package pdftex.def Info: ../output/fd_hjb_choice_path.pdf  used on input line 358.
+(pdftex.def)             Requested size: 195.1881pt x 130.35475pt.
+ [25
+
+ <../output/fd_hjb_choice_path.pdf>]
+File: ../output/phases.png Graphic file (type png)
+<use ../output/phases.png>
+Package pdftex.def Info: ../output/phases.png  used on input line 366.
+(pdftex.def)             Requested size: 195.1881pt x 177.25272pt.
+<../output/fd_hjb_state_path.pdf, id=210, 376.68542pt x 249.44379pt>
+File: ../output/fd_hjb_state_path.pdf Graphic file (type pdf)
+<use ../output/fd_hjb_state_path.pdf>
+Package pdftex.def Info: ../output/fd_hjb_state_path.pdf  used on input line 366.
+(pdftex.def)             Requested size: 195.1881pt x 129.25858pt.
+ [26
+
+ <../output/fd_hjb_state_path.pdf>]
 \tf@nav=\write7
 \openout7 = `econ285_presentation.nav'.
 
@@ -1289,11 +1331,11 @@ Package pdftex.def Info: ../output/phases.png  used on input line 206.
 \tf@snm=\write9
 \openout9 = `econ285_presentation.snm'.
 
-Package atveryend Info: Empty hook `BeforeClearDocument' on input line 229.
-Package atveryend Info: Empty hook `AfterLastShipout' on input line 229.
+Package atveryend Info: Empty hook `BeforeClearDocument' on input line 368.
+Package atveryend Info: Empty hook `AfterLastShipout' on input line 368.
  (c:/Users/churn/Documents/UCSD/2020_winter/econ281/blinder_weiss_1976/slides/econ285_presentation.aux)
-Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 229.
-Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 229.
+Package atveryend Info: Executing hook `AtVeryEndDocument' on input line 368.
+Package atveryend Info: Executing hook `AtEndAfterFileList' on input line 368.
 Package rerunfilecheck Info: File `econ285_presentation.out' has not changed.
 (rerunfilecheck)             Checksum: D41D8CD98F00B204E9800998ECF8427E;0.
 Package logreq Info: Writing requests to 'econ285_presentation.run.xml'.
@@ -1301,18 +1343,18 @@ Package logreq Info: Writing requests to 'econ285_presentation.run.xml'.
 
  ) 
 Here is how much of TeX's memory you used:
- 33492 strings out of 492616
- 642154 string characters out of 6122312
- 1052830 words of memory out of 5000000
- 36883 multiletter control sequences out of 15000+600000
+ 33546 strings out of 492616
+ 642920 string characters out of 6122312
+ 1057830 words of memory out of 5000000
+ 36913 multiletter control sequences out of 15000+600000
  544532 words of font info for 68 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  56i,11n,70p,882b,1616s stack positions out of 5000i,500n,10000p,200000b,80000s
 <c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi10.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmmi8.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmss10.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmss12.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmss8.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi10.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi12.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmssi8.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy8.pfb><c:/Users/churn/Utilities/texlive/2018/texmf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb>
-Output written on c:/Users/churn/Documents/UCSD/2020_winter/econ281/blinder_weiss_1976/slides/econ285_presentation.pdf (15 pages, 746920 bytes).
+Output written on c:/Users/churn/Documents/UCSD/2020_winter/econ281/blinder_weiss_1976/slides/econ285_presentation.pdf (26 pages, 772530 bytes).
 PDF statistics:
- 186 PDF objects out of 1000 (max. 8388607)
- 129 compressed objects within 2 object streams
- 31 named destinations out of 1000 (max. 500000)
- 83 words of extra memory for PDF output out of 10000 (max. 10000000)
+ 283 PDF objects out of 1000 (max. 8388607)
+ 192 compressed objects within 2 object streams
+ 53 named destinations out of 1000 (max. 500000)
+ 93 words of extra memory for PDF output out of 10000 (max. 10000000)
 
