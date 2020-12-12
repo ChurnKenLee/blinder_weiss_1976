@@ -255,13 +255,13 @@
     \begin{wideitemize}
         \item Forward difference:
         \begin{align*}
-            \partial_A^F V_{i,j}^t &= \frac{V_{i+1, j}^t - V_{i, j}^t}{\Delta A}, \\
-            \partial_K^F V_{i,j}^t &= \frac{V_{i, j+1}^t - V_{i, j}^t}{\Delta A},
+            \partial_A^F V_{i,j}^t &= \frac{V_{i+1, j}^t - V_{i, j}^t}{\Delta A} \\
+            \partial_K^F V_{i,j}^t &= \frac{V_{i, j+1}^t - V_{i, j}^t}{\Delta K}
         \end{align*}
         \item Backward difference:
         \begin{align*}
-            \partial_A^B V_{i,j}^t &= \frac{V_{i, j}^t - V_{i-1, j}^t}{\Delta A}, \\
-            \partial_K^B V_{i,j}^t &= \frac{V_{i, j}^t - V_{i, j-1}^t}{\Delta A},
+            \partial_A^B V_{i,j}^t &= \frac{V_{i, j}^t - V_{i-1, j}^t}{\Delta A} \\
+            \partial_K^B V_{i,j}^t &= \frac{V_{i, j}^t - V_{i, j-1}^t}{\Delta K}
         \end{align*}
     \end{wideitemize}
 
@@ -271,18 +271,20 @@
     \frametitle{Choice of forward or backward difference}
 
     \begin{wideitemize}
-        \item Drift of state variables determined using FOCs
+        \item At any grid point $i, j$ at time $t$, solve for $c, h, x$:
         \begin{align}
-            \partial_c u(c_{i,j}^t, h_{i,j}^t) &= \partial_A V_{i,j}^t \\
-            \partial_h u(c_{i,j}^t, h_{i,j}^t) &= \partial_A V_{i,j}^t \left[ g(x_{i, j}^t) K \right] + \partial_K V_{i,j}^t \left[ x_{i, j}^t K \right] \\
-            0 &= \partial_A V_{i,j}^t \left[ h g'(x_{i, j}^t) K \right] + \partial_K V_{i,j}^t \left[ h K \right]
+            \partial_c u(c_{i,j}^t, h_{i,j}^t) &= \partial_A V_{i,j}^t
         \end{align}
-        \item Constraints:
         \begin{align}
-            0 \leq h \leq 1 \\
-            0 \leq x \leq 1
+            \partial_h u(c_{i,j}^t, h_{i,j}^t) &= \partial_A V_{i,j}^t \left[ g(x_{i, j}^t) K_{j} \right] + \partial_K V_{i,j}^t \left[ x_{i, j}^t K_{j} \right] \quad \text{if} \quad 0 < h < 1 \\
+            \partial_h u(c_{i,j}^t, h_{i,j}^t) &\geq \partial_A V_{i,j}^t \left[ g(x_{i, j}^t) K_{j} \right] + \partial_K V_{i,j}^t \left[ x_{i, j}^t K_{j} \right] \quad \text{if} \quad h = 0
         \end{align}
-        \item If $mu_A > 0$, use $\partial_A^F V_{i,j}^t$, if $mu_A < 0$, use $\partial_A^B V_{i,j}^t$; same for $K$
+        \begin{align}
+            \partial_K V_{i,j}^t \left[ h K_{j} \right] &= -\partial_A V_{i,j}^t \left[ h g'(x_{i, j}^t) K_{j} \right] \quad \text{if} \quad 0 < x < 1  \\
+            \partial_K V_{i,j}^t \left[ h K_{j} \right] &\geq -\partial_A V_{i,j}^t \left[ h g'(x_{i, j}^t) K_{j} \right] \quad \text{if} \quad x = 1  \\
+            \partial_K V_{i,j}^t \left[ h K_{j} \right] &\leq -\partial_A V_{i,j}^t \left[ h g'(x_{i, j}^t) K_{j} \right] \quad \text{if} \quad x = 0
+        \end{align}
+        \item Problem: Do we use $\partial_A^F$ or $\partial_A^B$, and $\partial_K^F$ or $\partial_K^B$?
     \end{wideitemize}
 
 \end{frame}
@@ -291,47 +293,74 @@
     \frametitle{Choice of forward or backward difference}
 
     \begin{wideitemize}
-        \item Denote drift in $A$ computed using forward difference in $A$ and backward difference in $K$ as $\mu_A^{FK}$
-        \item Choose approximation scheme that is consistent with computed drift, e.g., choose scheme $FB$ if $\mu_A^{FB}>0$ and $\mu_K^{FB}<0$
-        \item Three potential ambiguous cases: steady-state, boundary condition, tie-breaking
+        \item $\partial_A^B + \partial_K^F \Rightarrow \mu_A^{BF}, \mu_K^{BF}$
+        \item Choose approximation scheme that is consistent with computed drift
+        \item e.g., $\partial_A^B + \partial_K^F$ requires $\mu_A^{BF} < 0, \mu_K^{BF} > 0$
+        \item Consistent scheme may not always exist:
+        \begin{wideitemize}
+            \item Boundaries
+            \item Steady-states
+        \end{wideitemize}
+        \item May have more than 1 consistent scheme due to non-concavity of $V$
     \end{wideitemize}
 
 \end{frame}
 
 \begin{frame}
-    \frametitle{Steady-state}
+    \frametitle{Boundaries}
 
     \begin{wideitemize}
-        \item Steady-state in one dimension, e.g., $A$ is consistent in the forward dimension, but $K$ is inconsistent
-        \item $\mu_A^{FF} > 0$ and $\mu_A^{FB} > 0$, and $\mu_K^{FF} < 0$ and $\mu_K^{FB} > 0$, then set $K$ to be steady-state
-        \item Do so by setting $\partial_K V_{i,j}^t$ such that $\mu_K = 0$
-        \item Steady-state in both dimension, so both $A$ and $K$ are inconsistent
-        \item Do so by setting $\partial_A V_{i,j}^t$ and $\partial_K V_{i,j}^t$ such that $\mu_A = 0$ and $\mu_K = 0$
-    \end{wideitemize}
-
-\end{frame}
-
-\begin{frame}
-    \frametitle{Boundary condition}
-
-    \begin{wideitemize}
-        \item Issue: drift of state variable cannot send state outside of boundary, both computational and theoretical
-        \item e.g., borrowing constraint $\bar{A}$
-        \item If $\mu_A^{FF} < 0$ and $\mu_A^{FB} < 0$, then the drift sends $A$ below $\bar{A}$
-        \item Set $\partial_A V_{i,j}^t$ at $\bar{A}$ such that $\mu_A^{FF} = 0$ if $K$ is forward consistent and $\mu_A^{FB} = 0$ if $K$ is backward consistent
+        \item What do we do at $A_{min}$, $A_{max}$, $K_{min}$, and $K_{max}$?
+        \item Problem: need $\mu_{A} \geq 0$ at $A_{min}$ and $\mu_{A} \leq 0$ at $A_{max}$
+        \item Possible solution: make $A_{max}$ very large so that $\mu_{A}^{BF}, \mu_{A}^{BB} < 0$ naturally at $A_{max}$
+        \item Choose $BF$ or $BB$ according to consistency with $\mu_{K}$
+        \item Cannot make $A_{min}$ very small, e.g., borrowing constraint $\bar{A} = A_{min}$
+        \item If $\mu_A^{FF}, \mu_A^{FB} < 0$ at $A_{min}$, then set $\partial_A$ at $A_{min}$ so that $\mu_A^{FF}, \mu_A^{FB} = 0$
         \item Note: possible to have steady-state in $K$ when at $A$ boundary, and vice versa
-        \item In the former case, $K$ is inconsistent at $A$ boundary
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Steady-state in one dimension}
+
+    \begin{wideitemize}
+        \item What do we do when one of the state variables is never consistent?
+        \item e.g., $\mu_A^{FF}, \mu_A^{FB} > 0$, so $A$ is consistent in the $F$ direction
+        \item but $\mu_K^{FF} < 0$ and $\mu_K^{FB} > 0$
+        \item I set $K$ to be at steady-state
+        \item Do so by setting $\partial_K$ so that $\mu_K = 0$
+        \item We will get $\partial_A^F, \partial_K \Rightarrow \mu_A > 0, \mu_K = 0$
+        \item Question: not sure if this is the correct way to infer steady-state
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{Steady-state in both dimensions}
+
+    \begin{wideitemize}
+        \item Steady-state in both dimension, so both $A$ and $K$ are inconsistent
+        \item We don't have a consistent $\mu_A^{FF}, \mu_A^{FB} > 0$, or $\mu_A^{BF}, \mu_A^{BB} < 0$
+        \item Neither do we have a consistent $\mu_K^{FF}, \mu_K^{BF} > 0$, or $\mu_K^{FB}, \mu_K^{BB} < 0$
+        \item Then set $\partial_A$ and $\partial_K$ such that $\mu_A = 0$ and $\mu_K = 0$
+        \item Question: Again, not sure if this is the correct criteria to decide on two-dimension steady-state
     \end{wideitemize}
 
 \end{frame}
 
 
-
 \begin{frame}
-    \frametitle{Tie-breaking}
+    \frametitle{Non-concavity of $V$}
 
     \begin{wideitemize}
-        \item Issue: approximation is consistent in both forwards and backwards direction
+        \item With concave $V$, $\partial_A^F < \partial_A^B$
+        \item $\Rightarrow \mu_A^{FF} < \mu_A^{BF}$
+        \item We will not have $A$ consistent in both $F$ and $B$:
+        \begin{wideitemize}
+            \item $\mu_A^{BF} < 0 <\mu_A^{FF}$ contradicts $\mu_A^{FF} < \mu_A^{BF}$
+        \end{wideitemize}
+        \item However, this may happen with non-concave $V$
         \item Solution: choose approximation that leads to larger Hamiltonian value
     \end{wideitemize}
 
@@ -342,7 +371,7 @@
 
     \begin{wideitemize}
         \item Proving my algorithm satisfies the three conditions of Barles and Souganidis (1991) (monotonicity, consistency, stability)
-        \item Need to check for tie-breaking issues within "boundary condition" and "steady-state"
+        \item Need to check for tie-breaking issues within ``boundary condition'' and ``steady-state''
         \item Speed up computation by consolidating ambiguous case checkers
         \item Fix terminal condition spike
     \end{wideitemize}
