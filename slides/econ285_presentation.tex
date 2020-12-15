@@ -293,7 +293,7 @@
     \frametitle{Choice of forward or backward difference}
 
     \begin{wideitemize}
-        \item $\partial_A^B + \partial_K^F \Rightarrow \mu_A^{BF}, \mu_K^{BF}$
+        \item Backwards in $A$, forwards in $K$: $\partial_A^B + \partial_K^F \Rightarrow \mu_A^{BF}, \mu_K^{BF}$
         \item Choose approximation scheme that is consistent with computed drift
         \item e.g., $\partial_A^B + \partial_K^F$ requires $\mu_A^{BF} < 0, \mu_K^{BF} > 0$
         \item Consistent scheme may not always exist:
@@ -304,6 +304,36 @@
         \item May have more than 1 consistent scheme due to non-concavity of $V$
     \end{wideitemize}
 
+\end{frame}
+
+\begin{frame}
+    \frametitle{Discretizing HJB}
+    \begin{wideitemize}
+        \item Stack all $V_{i, j}^{t+1}$ into $V^{t+1}$, a vector of length $nA * nK$
+        \item $V^{t+1}$ has associated optimal $c^t, h^t, x^t$, flow utility $U(V^{t+1})$, and drifts $\mu^t$
+        \item At each $i, j$, there is an associated upwind direction for $\partial V$
+        \item Matrix $A(V^{t+1})$ encodes these directions and drifts $\mu^{t+1}$, so $A(V^{t+1})*V^{t+1} = \partial V^{t+1}*\mu^{t+1}$
+    \end{wideitemize}
+    
+\end{frame}
+
+\begin{frame}
+    \frametitle{Discretizing HJB}
+    Recall HJB:
+    \begin{align*}
+        \rho V(A, K, t) = \max_{c, h, x} \quad &u(c, 1-h) \\
+        &+ \partial_A V(A, K, t) \left[rA + h g(x) K - c \right] \\
+        &+ \partial_K V(A, K, t) \left[-\delta K + x h K \right] \\
+        &+ \partial_t V(A, K, t)
+    \end{align*}
+    Discretized and stacked version:
+    \begin{equation}
+        \rho V^{t} = U(V^{t+1}) + A(V^{t+1}) * V^{t} + \frac{V^{t+1} - V^{t}}{\Delta t}
+    \end{equation}
+    \begin{wideitemize}
+        \item Solve backwards from terminal bequest motive: $V^T = B(A^T)$
+    \end{wideitemize}
+    
 \end{frame}
 
 \begin{frame}
@@ -331,7 +361,6 @@
         \item I set $K$ to be at steady-state
         \item Do so by setting $\partial_K$ so that $\mu_K = 0$
         \item We will get $\partial_A^F, \partial_K \Rightarrow \mu_A > 0, \mu_K = 0$
-        \item Question: not sure if this is the correct way to infer steady-state
     \end{wideitemize}
 
 \end{frame}
@@ -344,7 +373,6 @@
         \item We don't have a consistent $\mu_A^{FF}, \mu_A^{FB} > 0$, or $\mu_A^{BF}, \mu_A^{BB} < 0$
         \item Neither do we have a consistent $\mu_K^{FF}, \mu_K^{BF} > 0$, or $\mu_K^{FB}, \mu_K^{BB} < 0$
         \item Then set $\partial_A$ and $\partial_K$ such that $\mu_A = 0$ and $\mu_K = 0$
-        \item Question: Again, not sure if this is the correct criteria to decide on two-dimension steady-state
     \end{wideitemize}
 
 \end{frame}
@@ -366,14 +394,57 @@
 
 \end{frame}
 
+
+\begin{frame}
+    \frametitle{Progress since last meeting}
+    
+    \begin{wideitemize}
+        \item Improved algorithm explanation slides
+        \item Met with Johannes:
+        \begin{wideitemize}
+            \item He suggested I fix terminal condition spike by increasing bequest motive (completed, seems to work, not sure if best solution, will try others)
+            \item He thinks my modified algorithm to impose boundary/steady state/boundary + steady state conditions seem reasonable
+            \item He suggested a modification for rare cases where boundary/steady state coincide with non-concavity ambiguity: add tie-breaking (will need to wrap boundary/steady state condition checkers inside functions; 40\% done)
+            \item Create 1-slide explainer (what does Titan think?)
+        \end{wideitemize}
+        \item Not completed: Look at data and calibrate (will do after algorithm is faster)
+    \end{wideitemize}
+
+\end{frame}
+
+\begin{frame}
+    \frametitle{One-slide explainer}
+
+    \begin{wideitemize}
+        \item Discretize HJB over grids of $A, K$ indexed by $i, j$:
+        \item Approximate derivatives of $V$ using finite difference
+        \item Forward difference: 
+        \begin{equation}
+            \partial_A V(A_i, K_j, t) = \frac{V(A_{i+1}, K_j, t) - V(A_{i}, K_j, t)}{\Delta A}
+        \end{equation}
+        \item Backward difference: 
+        \begin{equation}
+            \partial_A V(A_i, K_j, t) = \frac{V(A_{i}, K_j, t) - V(A_{i-1}, K_j, t)}{\Delta A}
+        \end{equation}
+        \item Choose direction and optimal choice via ``upwind scheme'': direction is consistent with drift of state variable implied by optimal choice
+        \item Once we know $V^{t+1}$, only unknown in discretized HJB is $V^t$
+        \item Solve backwards from terminal $V^T$
+    \end{wideitemize}
+
+\end{frame}
+
 \begin{frame}
     \frametitle{Current computational issues}
 
     \begin{wideitemize}
         \item Proving my algorithm satisfies the three conditions of Barles and Souganidis (1991) (monotonicity, consistency, stability)
-        \item Need to check for tie-breaking issues within ``boundary condition'' and ``steady-state''
-        \item Speed up computation by consolidating ambiguous case checkers
-        \item Fix terminal condition spike
+        \item Speed up computation by consolidating ambiguous case checkers within a single function (goes hand-in-hand with Johannes' suggestion)
+        \item Length of time in schooling depends on initial wealth due to credit constraint
+        \begin{wideitemize}
+            \item With too much assets, agents end up not accumulating much human capital or assets
+            \item With too little assets, $x = 1$ period is very short
+            \item May need to allow for debt? Will require modified bequest motive
+        \end{wideitemize}
     \end{wideitemize}
 
 \end{frame}
