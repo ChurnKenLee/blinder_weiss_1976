@@ -1,1 +1,1 @@
-blinder_weiss_1976
+This code solves Blinder and Weiss (1976) numerically using a finite difference upwind scheme. Code adapted from Ben Moll's code.ycle Model and Two Endogenous State Variables: Wealth and Human Capital.
