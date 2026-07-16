@@ -7,7 +7,7 @@ capture log close
 global homepath "C:\Users\churn\Documents\UCSD\2020_winter\econ281\blinder_weiss_1976"
 global datapath "$homepath/data"
 global outputpath "$homepath/output"
-global codepath "$homepath/code"
+global codepath "$homepath/code/legacy/stata"
 
 cd $codepath
 
@@ -179,6 +179,5 @@ foreach i of local educ_level_list {
 
 grc1leg educ1.gph educ2.gph educ3.gph educ4.gph educ5.gph, position(4) ring(0)
 graph export "$outputpath/exp_wage_profile_cohort.pdf", replace
-
 
 

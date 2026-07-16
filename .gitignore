@@ -66,6 +66,20 @@ Literature/
 Output/
 
 # LaTeX auxiliary files
+*.aux
+*.bbl
+!slides/econ285_presentation.bbl
+*.bcf
+*.blg
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.run.xml
+*.snm
+*.synctex.gz
+*.toc
 draft/*
 !draft/*.tex
 !draft/*.pdf
