@@ -24,6 +24,7 @@ let
     sqlite
     udunits
     zlib
+    zstd
   ];
 in
 {
@@ -46,6 +47,9 @@ in
     # configure script explicitly supports these two variables.
     UDUNITS2_INCLUDE = "${pkgs.udunits}/include";
     UDUNITS2_LIBS = "-L${pkgs.udunits}/lib -ludunits2";
+    # Polars writes Parquet with zstd by default. Ensure source installs of the
+    # R arrow package can read those files.
+    ARROW_WITH_ZSTD = "ON";
   };
 
   scripts.r-renv-init = {

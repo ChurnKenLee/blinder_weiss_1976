@@ -7,5 +7,9 @@ not intended for further development.
 `reference/` contains MATLAB code used as source material.  It is not an
 active dependency of this project.
 
-Put the replacement JAX solver in `jax/` and future R analysis in `r/`.  Keep
-new work out of `legacy/` so it stays clear which implementation is current.
+`jax/blinder_weiss/` contains the reusable JAX model, direct-collocation path
+solver, and semi-Lagrangian Bellman policy solver. `jax/notebooks/` contains
+the Marimo front ends. Future R analysis belongs in `r/`.
+
+Keep new work out of `legacy/` so it stays clear which implementation is
+current.

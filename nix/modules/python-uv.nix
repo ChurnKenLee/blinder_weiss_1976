@@ -6,6 +6,7 @@
   packages = with pkgs; [
     uv
     gcc
+    ipopt
     pkg-config
     patchelf
   ];

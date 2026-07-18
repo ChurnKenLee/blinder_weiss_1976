@@ -2,11 +2,74 @@
 name = "blinder-weiss-1976"
 version = "0.1.0"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "cyipopt>=1.7.0",
+    "diffrax>=0.7.2",
+    "jax[cuda13]==0.10.1; sys_platform == 'linux'",
+    "matplotlib>=3.11.0",
+    "numpy>=2.4.1",
+    "scipy>=1.18.0",
+]
+
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["code/jax/blinder_weiss"]
 
 [dependency-groups]
 dev = [
     "basedpyright>=1.39.9",
     "debugpy>=1.8.21",
+    "marimo>=0.23.14",
+    "pytest>=9.0.2",
     "ruff>=0.15.22",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.per-file-ignores]
+# A final bare expression is how a Marimo cell displays its output.
+"code/jax/notebooks/*.py" = ["B018"]
+
+[tool.basedpyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = ["code/jax"]
+typeCheckingMode = "basic"
+reportMissingTypeStubs = false
+
+[tool.uv]
+constraint-dependencies = [
+  "nvidia-cublas==13.4.0.1",
+  "nvidia-cuda-cupti==13.2.75",
+  "nvidia-cuda-nvrtc==13.2.78",
+  "nvidia-cuda-runtime==13.2.75",
+  "nvidia-cudnn-cu13==9.20.0.48",
+  "nvidia-cufft==12.2.0.46",
+  "nvidia-cusolver==12.2.0.1",
+  "nvidia-cusparse==12.7.10.1",
+  "nvidia-nccl-cu13==2.29.7",
+  "nvidia-nvshmem-cu13==3.4.5",
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu132"
+url = "https://download.pytorch.org/whl/cu132"
+explicit = true
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu132", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+torchvision = [
+  { index = "pytorch-cu132", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
