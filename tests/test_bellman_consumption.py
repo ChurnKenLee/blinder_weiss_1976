@@ -27,44 +27,71 @@ def test_conditional_consumption_matches_global_piecewise_reference() -> None:
     training = np.array([0.2, 0.0, 0.5, 0.0])
     duration = 0.65
     floor = 1e-8
-    optimizer = jax.jit(partial(
-        optimize_conditional_consumption,
-        step=duration,
-        asset_minimum=asset_grid[0],
-        consumption_floor=floor,
-        path_checkpoints=8,
-    ))
+    optimizer = jax.jit(
+        partial(
+            optimize_conditional_consumption,
+            step=duration,
+            asset_minimum=asset_grid[0],
+            consumption_floor=floor,
+            path_checkpoints=8,
+        )
+    )
     consumption, values = optimizer(
-        jnp.asarray(states), jnp.asarray(hours), jnp.asarray(training),
-        jnp.asarray(continuation), jnp.asarray(asset_grid), jnp.asarray(log_grid), params,
+        jnp.asarray(states),
+        jnp.asarray(hours),
+        jnp.asarray(training),
+        jnp.asarray(continuation),
+        jnp.asarray(asset_grid),
+        jnp.asarray(log_grid),
+        params,
     )
     beta = np.exp(-params.rho * duration)
     flow_discount = -np.expm1(-params.rho * duration) / params.rho
     consumption_factor = np.expm1(params.interest_rate * duration) / params.interest_rate
 
     for index, state in enumerate(states):
-        cap = float(maximum_feasible_consumption(
-            jnp.asarray(state[0]), jnp.asarray(state[1]), jnp.asarray(hours[index]),
-            jnp.asarray(training[index]), params, duration, asset_grid[0], 8,
-        ))
-        zero_consumption_state = np.asarray(constant_control_transition(
-            jnp.asarray(state), jnp.asarray([0.0, hours[index], training[index]]),
-            params, duration,
-        ))
+        cap = float(
+            maximum_feasible_consumption(
+                jnp.asarray(state[0]),
+                jnp.asarray(state[1]),
+                jnp.asarray(hours[index]),
+                jnp.asarray(training[index]),
+                params,
+                duration,
+                asset_grid[0],
+                8,
+            )
+        )
+        zero_consumption_state = np.asarray(
+            constant_control_transition(
+                jnp.asarray(state),
+                jnp.asarray([0.0, hours[index], training[index]]),
+                params,
+                duration,
+            )
+        )
         lower = max(floor, (zero_consumption_state[0] - asset_grid[-1]) / consumption_factor)
         upper = min(cap, (zero_consumption_state[0] - asset_grid[0]) / consumption_factor)
 
         def objective(candidate, zero_consumption_state=zero_consumption_state, index=index):
             next_assets = zero_consumption_state[0] - consumption_factor * candidate
-            next_value = float(_interpolate_numpy(
-                continuation, asset_grid, log_grid, next_assets, zero_consumption_state[1]
-            ))
-            return flow_discount * (
-                params.consumption_weight * candidate**params.consumption_power
-                / params.consumption_power
-                + params.leisure_weight * (1.0 - hours[index])**params.leisure_power
-                / params.leisure_power
-            ) + beta * next_value
+            next_value = float(
+                _interpolate_numpy(
+                    continuation, asset_grid, log_grid, next_assets, zero_consumption_state[1]
+                )
+            )
+            return (
+                flow_discount
+                * (
+                    params.consumption_weight
+                    * candidate**params.consumption_power
+                    / params.consumption_power
+                    + params.leisure_weight
+                    * (1.0 - hours[index]) ** params.leisure_power
+                    / params.leisure_power
+                )
+                + beta * next_value
+            )
 
         boundaries = np.clip(
             (zero_consumption_state[0] - asset_grid) / consumption_factor, lower, upper
@@ -73,8 +100,10 @@ def test_conditional_consumption_matches_global_piecewise_reference() -> None:
         candidate_values = [objective(candidate) for candidate in boundaries]
         for left, right in zip(boundaries[:-1], boundaries[1:], strict=True):
             result = minimize_scalar(
-                lambda candidate: -objective(candidate), bounds=(left, right),
-                method="bounded", options={"xatol": 1e-13},
+                lambda candidate: -objective(candidate),
+                bounds=(left, right),
+                method="bounded",
+                options={"xatol": 1e-13},
             )
             candidate_values.append(-result.fun)
         assert float(values[index]) == pytest.approx(max(candidate_values), abs=2e-10)
@@ -100,9 +129,18 @@ def test_terminal_consumption_is_analytic_and_parameters_are_dynamic() -> None:
     def solve(dynamic_params):
         traces.append(None)
         return optimize_conditional_consumption(
-            states, hours, training, continuation, asset_grid, log_grid, dynamic_params,
-            step=duration, asset_minimum=asset_grid[0], consumption_floor=1e-8,
-            path_checkpoints=4, continuation_is_terminal=True,
+            states,
+            hours,
+            training,
+            continuation,
+            asset_grid,
+            log_grid,
+            dynamic_params,
+            step=duration,
+            asset_minimum=asset_grid[0],
+            consumption_floor=1e-8,
+            path_checkpoints=4,
+            continuation_is_terminal=True,
             incumbent_consumption=jnp.ones(2),
         )
 
@@ -114,8 +152,8 @@ def test_terminal_consumption_is_analytic_and_parameters_are_dynamic() -> None:
         factor = np.expm1(params.interest_rate * duration) / params.interest_rate
         wealth = np.asarray(states[:, 0]) * np.exp(params.interest_rate * duration)
         expected = wealth / (
-            factor + np.sqrt(beta * factor * params.bequest_weight
-                             / (flow_discount * consumption_weight))
+            factor
+            + np.sqrt(beta * factor * params.bequest_weight / (flow_discount * consumption_weight))
         )
         np.testing.assert_allclose(consumption, expected, rtol=1e-11)
         expected_value = flow_discount * (-consumption_weight / expected - 1.0) - beta / (
@@ -138,12 +176,13 @@ def test_consumption_respects_path_constraint_and_retains_incumbent() -> None:
     arguments = (states, hours, training, continuation, asset_grid, log_grid, params)
     optimizer = partial(
         optimize_conditional_consumption,
-        step=2.0, asset_minimum=1e-4, consumption_floor=1e-8, path_checkpoints=16,
+        step=2.0,
+        asset_minimum=1e-4,
+        consumption_floor=1e-8,
+        path_checkpoints=16,
     )
     consumption, value = optimizer(*arguments)
-    repeated_consumption, repeated_value = optimizer(
-        *arguments, incumbent_consumption=consumption
-    )
+    repeated_consumption, repeated_value = optimizer(*arguments, incumbent_consumption=consumption)
     assert consumption.shape == (1, 2)
     assert np.all(np.asarray(repeated_value) >= np.asarray(value))
     np.testing.assert_allclose(repeated_consumption, consumption, atol=1e-12)
@@ -156,9 +195,17 @@ def test_consumption_respects_path_constraint_and_retains_incumbent() -> None:
 def test_conditional_consumption_rejects_unavoidable_domain_exit() -> None:
     params = benchmark_params()
     consumption, value = optimize_conditional_consumption(
-        jnp.asarray([[1.0, -1.0]]), jnp.asarray([0.0]), jnp.asarray([0.0]),
-        jnp.zeros((3, 3)), jnp.asarray([1e-4, 1.0, 10.0]), jnp.asarray([-1.0, 0.0, 1.0]),
-        params, step=1.0, asset_minimum=1e-4, consumption_floor=1e-8, path_checkpoints=4,
+        jnp.asarray([[1.0, -1.0]]),
+        jnp.asarray([0.0]),
+        jnp.asarray([0.0]),
+        jnp.zeros((3, 3)),
+        jnp.asarray([1e-4, 1.0, 10.0]),
+        jnp.asarray([-1.0, 0.0, 1.0]),
+        params,
+        step=1.0,
+        asset_minimum=1e-4,
+        consumption_floor=1e-8,
+        path_checkpoints=4,
     )
     assert np.isfinite(float(consumption[0]))
     assert np.isneginf(float(value[0]))

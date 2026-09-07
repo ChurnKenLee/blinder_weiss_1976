@@ -31,13 +31,12 @@ def _interior_slope(
 def _endpoint_slope(
     edge_width: Array, next_width: Array, edge_secant: Array, next_secant: Array
 ) -> Array:
-    slope = (
-        (2.0 * edge_width + next_width) * edge_secant - edge_width * next_secant
-    ) / (edge_width + next_width)
+    slope = ((2.0 * edge_width + next_width) * edge_secant - edge_width * next_secant) / (
+        edge_width + next_width
+    )
     wrong_sign = jnp.sign(slope) != jnp.sign(edge_secant)
-    limited = (
-        (jnp.sign(edge_secant) != jnp.sign(next_secant))
-        & (jnp.abs(slope) > 3.0 * jnp.abs(edge_secant))
+    limited = (jnp.sign(edge_secant) != jnp.sign(next_secant)) & (
+        jnp.abs(slope) > 3.0 * jnp.abs(edge_secant)
     )
     return jnp.where(wrong_sign, 0.0, jnp.where(limited, 3.0 * edge_secant, slope))
 
@@ -130,9 +129,7 @@ def tensor_pchip_interpolate(
         jnp.clip(log_human_capital, log_grid[0], log_grid[-1]),
     )
     derivatives = (
-        pchip_slopes(asset_grid, values)
-        if asset_derivatives is None
-        else asset_derivatives
+        pchip_slopes(asset_grid, values) if asset_derivatives is None else asset_derivatives
     )
     asset_index = _left_index(asset_grid, asset_query, asset_grid_curvature)
     log_index = _left_index(log_grid, log_query, 1.0 if uniform_log_grid else None)

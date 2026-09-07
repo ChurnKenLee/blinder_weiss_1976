@@ -58,15 +58,10 @@ def optimize_conditional_consumption(
     duration = jnp.asarray(step)
     beta = jnp.exp(-params.rho * duration)
     flow_discount = duration * _exprel(-params.rho * duration)
-    growth = (
-        params.human_capital_productivity * training_time
-        - params.human_capital_depreciation
-    )
+    growth = params.human_capital_productivity * training_time - params.human_capital_depreciation
     asset_factor = jnp.exp(params.interest_rate * duration)
     consumption_factor = duration * _exprel(params.interest_rate * duration)
-    income_factor = asset_factor * duration * _exprel(
-        (growth - params.interest_rate) * duration
-    )
+    income_factor = asset_factor * duration * _exprel((growth - params.interest_rate) * duration)
     assets_without_consumption = assets * asset_factor + income_factor * (
         effective_earnings_share(hours, training_time) * jnp.exp(log_human_capital)
     )
@@ -147,20 +142,17 @@ def optimize_conditional_consumption(
                 assets_without_consumption - consumption_factor * midpoint,
                 asset_grid[0],
             )
-            marginal = (
-                flow_discount * params.consumption_weight
-                * midpoint ** (params.consumption_power - 1.0)
-                - beta * consumption_factor * params.bequest_weight
-                * next_assets ** (params.bequest_power - 1.0)
+            marginal = flow_discount * params.consumption_weight * midpoint ** (
+                params.consumption_power - 1.0
+            ) - beta * consumption_factor * params.bequest_weight * next_assets ** (
+                params.bequest_power - 1.0
             )
             return (
                 jnp.where(marginal > 0.0, midpoint, left),
                 jnp.where(marginal > 0.0, right, midpoint),
             )
 
-        left, right = jax.lax.fori_loop(
-            0, terminal_iterations, bisect, (lower, safe_upper)
-        )
+        left, right = jax.lax.fori_loop(0, terminal_iterations, bisect, (lower, safe_upper))
         candidate = 0.5 * (left + right)
         for consumption in (lower, safe_upper, candidate):
             carry = keep_better(carry, consumption, value_at_consumption(consumption))
@@ -173,15 +165,13 @@ def optimize_conditional_consumption(
             log_human_capital_grid[-1],
         )
         log_index = jnp.clip(
-            jnp.searchsorted(
-                log_human_capital_grid, bounded_log_human_capital, side="right"
-            ) - 1,
+            jnp.searchsorted(log_human_capital_grid, bounded_log_human_capital, side="right") - 1,
             0,
             log_human_capital_grid.size - 2,
         )
-        log_weight = (
-            bounded_log_human_capital - log_human_capital_grid[log_index]
-        ) / (log_human_capital_grid[log_index + 1] - log_human_capital_grid[log_index])
+        log_weight = (bounded_log_human_capital - log_human_capital_grid[log_index]) / (
+            log_human_capital_grid[log_index + 1] - log_human_capital_grid[log_index]
+        )
 
         def scan_interval(index, interval_carry):
             asset_left, asset_right = asset_grid[index], asset_grid[index + 1]
@@ -204,7 +194,8 @@ def optimize_conditional_consumption(
             safe_upper = jnp.maximum(interval_upper, interval_lower)
             positive_slope = jnp.where(slope > 0.0, slope, 1.0)
             stationary = (
-                flow_discount * params.consumption_weight
+                flow_discount
+                * params.consumption_weight
                 / (beta * consumption_factor * positive_slope)
             ) ** (1.0 / (1.0 - params.consumption_power))
             stationary = jnp.where(slope > 0.0, stationary, safe_upper)
@@ -213,8 +204,7 @@ def optimize_conditional_consumption(
                 next_assets = assets_without_consumption - consumption_factor * consumption
                 continuation = value_left + slope * (next_assets - asset_left)
                 value = (
-                    flow_discount * flow_utility(consumption, hours, params)
-                    + beta * continuation
+                    flow_discount * flow_utility(consumption, hours, params) + beta * continuation
                 )
                 value = jnp.where(interval_feasible & jnp.isfinite(value), value, -jnp.inf)
                 interval_carry = keep_better(interval_carry, consumption, value)
