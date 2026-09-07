@@ -1161,35 +1161,30 @@ def _make_bellman_step(
     return bellman_step
 
 
-def solve_bellman(
-    params: ModelParams | None = None,
-    config: BellmanConfig | None = None,
-) -> BellmanSolution:
-    """Solve the deterministic finite-horizon Bellman equation backward.
+@lru_cache(maxsize=16)
+def _cached_backward_solver(config: BellmanConfig, compute_device: Any) -> Any:
+    """Reuse a compiled recursion across parameter values on one device.
 
-    The complete backward recursion is one compiled JAX program.  With the
-    default ``compute_platform="auto"``, JAX selects CUDA when a GPU backend is
-    available and otherwise falls back to CPU.  Set ``compute_platform="gpu"``
-    to require CUDA and fail early if it is unavailable.
+    Only the discretization and device belong in this cache key. ModelParams
+    is a dynamic pytree argument: changing utility or technology parameters
+    during calibration must neither retrace the optimizer nor retain stale
+    constants from a previous solve.
     """
 
-    params = benchmark_params() if params is None else params
-    config = BellmanConfig() if config is None else config
-    _validate_config(params, config)
-    compute_device = _select_compute_device(config)
     asset_grid_np, log_human_capital_grid_np = bellman_state_grids(config)
     asset_grid = jax.device_put(asset_grid_np, compute_device)
     log_human_capital_grid = jax.device_put(log_human_capital_grid_np, compute_device)
-    bellman_step = _make_bellman_step(params, config, asset_grid, log_human_capital_grid)
-
-    terminal_assets = jnp.broadcast_to(
-        asset_grid[:, None], (config.asset_nodes, config.human_capital_nodes)
-    )
-    terminal_values = bequest_utility(terminal_assets, params)
 
     def backward_solve(
-        terminal_continuation: Array,
+        params: ModelParams,
     ) -> tuple[Array, Array, Array, Array]:
+        bellman_step = _make_bellman_step(
+            params, config, asset_grid, log_human_capital_grid
+        )
+        terminal_assets = jnp.broadcast_to(
+            asset_grid[:, None], (config.asset_nodes, config.human_capital_nodes)
+        )
+        terminal_continuation = bequest_utility(terminal_assets, params)
         terminal_policy = jnp.zeros(
             (config.asset_nodes, config.human_capital_nodes, 3),
             dtype=terminal_continuation.dtype,
@@ -1234,12 +1229,38 @@ def solve_bellman(
             reverse_training[::-1],
         )
 
-    # ``terminal_values`` and all closed-over grids already reside on the
-    # selected device, which determines where this compiled program executes.
-    compiled_backward_solve = jax.jit(backward_solve)
+    # Both grids and the dynamic parameters are committed to this device.
+    return jax.jit(backward_solve)
+
+
+def solve_bellman(
+    params: ModelParams | None = None,
+    config: BellmanConfig | None = None,
+) -> BellmanSolution:
+    """Solve the deterministic finite-horizon Bellman equation backward.
+
+    The complete backward recursion is one compiled JAX program, cached by
+    configuration and device and reused across model parameter changes. With
+    the default ``compute_platform="auto"``, JAX selects CUDA when a GPU backend
+    is available and otherwise falls back to CPU. Set ``compute_platform="gpu"``
+    to require CUDA and fail early if it is unavailable.
+    """
+
+    params = benchmark_params() if params is None else params
+    config = BellmanConfig() if config is None else config
+    _validate_config(params, config)
+    compute_device = _select_compute_device(config)
+    asset_grid_np, log_human_capital_grid_np = bellman_state_grids(config)
+    compiled_backward_solve = _cached_backward_solver(config, compute_device)
+    # Normalize scalar types as well as placement so NumPy scalar, integer,
+    # and Python float calibration inputs share the same JAX signature.
+    device_params = jax.device_put(
+        jax.tree.map(lambda value: np.asarray(value, dtype=np.float64), params),
+        compute_device,
+    )
 
     start = perf_counter()
-    device_histories = compiled_backward_solve(terminal_values)
+    device_histories = compiled_backward_solve(device_params)
     values, consumption_policy, hours_policy, training_time_policy = (
         np.asarray(array) for array in jax.device_get(device_histories)
     )
