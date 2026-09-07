@@ -13,7 +13,7 @@ import json
 from dataclasses import asdict, replace
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, cast
 
 import jax
 import numpy as np
@@ -227,6 +227,7 @@ def _reference_comparison(
     if (
         not metadata.get("reference_accepted", False)
         or not metadata["diagnostics"]["accepted_success"]
+        or not metadata.get("comparison_usable", True)
     ):
         return {"status": "reference_not_accepted", "diagnostics": metadata.get("diagnostics")}
     if _economics(solution.params) != _economics(ModelParams(**metadata["params"])):
@@ -485,7 +486,7 @@ def validate_folders(
     sidecar = output.with_suffix(".npz")
     temp = sidecar.with_suffix(".npz.tmp")
     with temp.open("wb") as handle:
-        np.savez_compressed(handle, **arrays)
+        np.savez_compressed(handle, **cast(dict[str, Any], arrays))
     temp.replace(sidecar)
     report["trajectory_artifact"] = str(sidecar)
     temporary_json = output.with_suffix(".json.tmp")
