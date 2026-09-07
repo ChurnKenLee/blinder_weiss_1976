@@ -26,6 +26,7 @@ import numpy as np
 from jax import Array
 from jax.typing import ArrayLike
 
+from .bellman_bicubic import monotone_bicubic_interpolate, prepare_monotone_bicubic
 from .bellman_consumption import optimize_conditional_consumption
 from .bellman_interpolation import pchip_slopes, tensor_pchip_interpolate
 from .model import (
@@ -84,7 +85,7 @@ class BellmanConfig:
     control_batch_size: int = 256
     neighbor_policy_sweeps: int = 2
     consumption_polish: bool = False
-    value_interpolation: Literal["bilinear", "pchip"] = "bilinear"
+    value_interpolation: Literal["bilinear", "pchip", "monotone_bicubic"] = "bilinear"
     compute_platform: Literal["auto", "cpu", "gpu"] = "auto"
     device_index: int = 0
 
@@ -253,9 +254,9 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
         raise ValueError("neighbor_policy_sweeps cannot be negative")
     if config.compute_platform not in {"auto", "cpu", "gpu"}:
         raise ValueError("compute_platform must be 'auto', 'cpu', or 'gpu'")
-    if config.value_interpolation not in {"bilinear", "pchip"}:
-        raise ValueError("value_interpolation must be 'bilinear' or 'pchip'")
-    if config.value_interpolation == "pchip" and config.consumption_polish:
+    if config.value_interpolation not in {"bilinear", "pchip", "monotone_bicubic"}:
+        raise ValueError("value_interpolation must be bilinear, pchip, or monotone_bicubic")
+    if config.value_interpolation != "bilinear" and config.consumption_polish:
         raise ValueError("exact consumption polish requires bilinear continuation")
     if config.device_index < 0:
         raise ValueError("device_index cannot be negative")
@@ -477,9 +478,25 @@ def _interpolate_value_jax(
     config: BellmanConfig,
     *,
     asset_derivatives: Array | None = None,
+    bicubic_table: Array | None = None,
 ) -> Array:
     """Use the same continuation representation in solving and validation."""
 
+    if config.value_interpolation == "monotone_bicubic":
+        prepared = (
+            prepare_monotone_bicubic(values, asset_grid, log_human_capital_grid)
+            if bicubic_table is None
+            else bicubic_table
+        )
+        return monotone_bicubic_interpolate(
+            prepared,
+            asset_grid,
+            log_human_capital_grid,
+            assets,
+            log_human_capital,
+            asset_grid_curvature=config.asset_grid_curvature,
+            uniform_log_grid=True,
+        )
     if config.value_interpolation == "pchip":
         return tensor_pchip_interpolate(
             values,
@@ -576,7 +593,7 @@ def _make_control_optimizer(
         next_states: Array,
         continuation_is_terminal: ArrayLike,
     ) -> Array:
-        # PCHIP derivative tables are prepared once per age by optimize_states.
+        # Cubic derivative tables are prepared once per age by optimize_states.
         values = (
             continuation_values[0] if config.value_interpolation == "pchip" else continuation_values
         )
@@ -589,6 +606,9 @@ def _make_control_optimizer(
             next_states[..., 1],
             config,
             asset_derivatives=derivatives,
+            bicubic_table=(
+                continuation_values if config.value_interpolation == "monotone_bicubic" else None
+            ),
         )
         terminal = bequest_utility(
             jnp.maximum(next_states[..., 0], asset_minimum),
@@ -1014,6 +1034,10 @@ def _make_control_optimizer(
         if config.value_interpolation == "pchip":
             continuation_values = jnp.stack(
                 (continuation_values, pchip_slopes(asset_grid, continuation_values)), axis=0
+            )
+        if config.value_interpolation == "monotone_bicubic":
+            continuation_values = prepare_monotone_bicubic(
+                continuation_values, asset_grid, log_human_capital_grid
             )
         state_shape = states.shape[:-1]
         flat_states = states.reshape((-1, 2))

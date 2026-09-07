@@ -30,7 +30,9 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--polish-consumption", action="store_true")
-    parser.add_argument("--interpolation", choices=["bilinear", "pchip"], default="bilinear")
+    parser.add_argument(
+        "--interpolation", choices=["bilinear", "pchip", "monotone_bicubic"], default="bilinear"
+    )
     parser.add_argument("--diagnostics", action="store_true")
     args = parser.parse_args()
     if args.repeats < 1:
