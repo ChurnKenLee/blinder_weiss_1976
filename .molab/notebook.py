@@ -4,6 +4,7 @@
 #     "basedpyright>=1.39.9",
 #     "diffrax>=0.7.2",
 #     "jax[cuda13]==0.11.0",
+#     "numpy==2.5.3",
 # ]
 # ///
 import marimo
