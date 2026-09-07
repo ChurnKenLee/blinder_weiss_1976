@@ -25,7 +25,8 @@ from blinder_weiss.model import benchmark_params
 
 def test_quadrature_exact_continuous_joint_moments_and_atoms():
     law = SyntheticInitialDistribution(
-        correlation=-0.3, asset_floor_mass=0.2,
+        correlation=-0.3,
+        asset_floor_mass=0.2,
         atoms=(InitialAtom(5.0, 1.0, 0.1), InitialAtom(0.001, 1.1, 0.05)),
     )
     nodes = initial_quadrature(law, nodes_per_dimension=8, asset_floor=0.001)
@@ -39,7 +40,7 @@ def test_quadrature_exact_continuous_joint_moments_and_atoms():
     a, y = nodes.assets[interior], np.log(nodes.human_capital[interior])
     assert a @ weights == pytest.approx(5.0, abs=1e-14)
     assert y @ weights == pytest.approx(0.0, abs=1e-14)
-    variance_a = (a - 5.0)**2 @ weights
+    variance_a = (a - 5.0) ** 2 @ weights
     variance_y = y**2 @ weights
     covariance = ((a - 5.0) * y) @ weights
     assert variance_a == pytest.approx(3.0, abs=1e-13)
@@ -64,12 +65,18 @@ def test_quadrature_refinement_and_zero_components_preserve_shapes():
         previous = actual
 
 
-@pytest.mark.parametrize("changes", [
-    {"correlation": 0.34}, {"asset_floor_mass": -0.1},
-    {"asset_floor_mass": 1.0}, {"asset_lower": -1.0},
-    {"log_human_capital_lower": 1.0}, {"asset_upper": np.inf},
-    {"atoms": (InitialAtom(1, 0, 0.1),)},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"correlation": 0.34},
+        {"asset_floor_mass": -0.1},
+        {"asset_floor_mass": 1.0},
+        {"asset_lower": -1.0},
+        {"log_human_capital_lower": 1.0},
+        {"asset_upper": np.inf},
+        {"atoms": (InitialAtom(1, 0, 0.1),)},
+    ],
+)
 def test_invalid_initial_laws(changes):
     with pytest.raises(ValueError):
         initial_quadrature(replace(SyntheticInitialDistribution(), **changes), asset_floor=0.001)
@@ -100,22 +107,35 @@ def test_iid_sampler_matches_the_same_initial_measure():
 def fake_population():
     return PopulationResult(
         "quadrature",
-        SimpleNamespace(time=np.array([0.0, 1.0, 2.0]), hours=np.array([0.2, 0.4, 0.6]),
-                        participation_hours_threshold=0.02),
-        SimpleNamespace(time=np.array([0.0, 1.0, 2.0, 3.0]),
-                        assets=np.array([5.0, 6.0, 7.0, 8.0])),
-        {}, None,
+        SimpleNamespace(
+            time=np.array([0.0, 1.0, 2.0]),
+            hours=np.array([0.2, 0.4, 0.6]),
+            participation_hours_threshold=0.02,
+        ),
+        SimpleNamespace(time=np.array([0.0, 1.0, 2.0, 3.0]), assets=np.array([5.0, 6.0, 7.0, 8.0])),
+        {},
+        None,
     )
 
 
 def synthetic_targets():
     return CalibrationTargets(
         (
-            AgeMomentTarget("hours", np.array([20.5, 21.0]), np.array([0.2, 0.2]),
-                            0.1, np.array([1.0, 2.0]), MOMENT_UNITS["hours"]),
-            AgeMomentTarget("assets", np.array([23.0]), np.array([7.0]),
-                            2.0, 1.0, MOMENT_UNITS["assets"]),
-        ), 20.0, 0.02, "synthetic test; no survey input",
+            AgeMomentTarget(
+                "hours",
+                np.array([20.5, 21.0]),
+                np.array([0.2, 0.2]),
+                0.1,
+                np.array([1.0, 2.0]),
+                MOMENT_UNITS["hours"],
+            ),
+            AgeMomentTarget(
+                "assets", np.array([23.0]), np.array([7.0]), 2.0, 1.0, MOMENT_UNITS["assets"]
+            ),
+        ),
+        20.0,
+        0.02,
+        "synthetic test; no survey input",
     )
 
 
@@ -127,13 +147,16 @@ def test_scaled_weighted_loss_with_age_origin_and_terminal_states():
     assert loss.total_weight == 4.0
 
 
-@pytest.mark.parametrize("change,message", [
-    ({"ages": np.array([20.0, 23.0])}, "no extrapolation"),
-    ({"units": "annual hours"}, "converted to units"),
-    ({"scale": 0.0}, "scales must be positive"),
-    ({"weights": -1.0}, "weights nonnegative"),
-    ({"values": np.array([np.nan, 0.0])}, "must be finite"),
-])
+@pytest.mark.parametrize(
+    "change,message",
+    [
+        ({"ages": np.array([20.0, 23.0])}, "no extrapolation"),
+        ({"units": "annual hours"}, "converted to units"),
+        ({"scale": 0.0}, "scales must be positive"),
+        ({"weights": -1.0}, "weights nonnegative"),
+        ({"values": np.array([np.nan, 0.0])}, "must be finite"),
+    ],
+)
 def test_invalid_target_measurement_contract(change, message):
     targets = synthetic_targets()
     bad_profile = replace(targets.profiles[0], **change)
@@ -156,12 +179,22 @@ def test_participation_convention_and_zero_weights_cannot_change_silently():
 def test_quadrature_rollout_preserves_mass_and_initial_floor_atom():
     solution = solve_bellman(
         benchmark_params(horizon=2.0),
-        BellmanConfig(periods=2, asset_nodes=5, human_capital_nodes=5,
-                      asset_minimum=1e-3, asset_maximum=12.0,
-                      log_human_capital_minimum=-1.0, log_human_capital_maximum=1.0,
-                      hours_nodes=3, investment_nodes=3, consumption_nodes=5,
-                      refinement_steps=2, control_batch_size=16,
-                      neighbor_policy_sweeps=0, compute_platform="cpu"),
+        BellmanConfig(
+            periods=2,
+            asset_nodes=5,
+            human_capital_nodes=5,
+            asset_minimum=1e-3,
+            asset_maximum=12.0,
+            log_human_capital_minimum=-1.0,
+            log_human_capital_maximum=1.0,
+            hours_nodes=3,
+            investment_nodes=3,
+            consumption_nodes=5,
+            refinement_steps=2,
+            control_batch_size=16,
+            neighbor_policy_sweeps=0,
+            compute_platform="cpu",
+        ),
     )
     nodes = initial_quadrature(nodes_per_dimension=2, asset_floor=solution.config.asset_minimum)
     result = simulate_population(solution, nodes, participation_hours_threshold=0.02)
@@ -170,4 +203,6 @@ def test_quadrature_rollout_preserves_mass_and_initial_floor_atom():
     assert result.diagnostics["maximum_mass_drift"] < 1e-14
     assert result.moments.time.shape == (2,)
     assert result.state_moments.time.shape == (3,)
-    np.testing.assert_allclose(result.state_moments.assets, result.simulation.assets @ nodes.weights)
+    np.testing.assert_allclose(
+        result.state_moments.assets, result.simulation.assets @ nodes.weights
+    )

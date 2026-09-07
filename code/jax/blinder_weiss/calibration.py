@@ -111,7 +111,9 @@ def weighted_age_moment_loss(
         ages = np.asarray(profile.ages, dtype=np.float64)
         values = np.asarray(profile.values, dtype=np.float64)
         if ages.ndim != 1 or ages.size == 0 or values.shape != ages.shape:
-            raise ValueError("target ages and values must be nonempty matching one-dimensional arrays")
+            raise ValueError(
+                "target ages and values must be nonempty matching one-dimensional arrays"
+            )
         try:
             scale = np.broadcast_to(np.asarray(profile.scale, dtype=np.float64), ages.shape)
             weights = np.broadcast_to(np.asarray(profile.weights, dtype=np.float64), ages.shape)
@@ -163,9 +165,12 @@ def evaluate_calibration(
     solution = solve_bellman(params, config)
     solved = perf_counter()
     population = simulate_population(
-        solution, initial_nodes, backend=backend,
+        solution,
+        initial_nodes,
+        backend=backend,
         participation_hours_threshold=targets.participation_hours_threshold,
-        distribution_grid=distribution_grid, store_snapshots=store_snapshots,
+        distribution_grid=distribution_grid,
+        store_snapshots=store_snapshots,
     )
     objective = weighted_age_moment_loss(population, targets)
     finished = perf_counter()
@@ -206,14 +211,20 @@ def fit_scalar_calibration(
 
     def objective(value: float) -> float:
         evaluation = evaluate_calibration(
-            params._replace(**{parameter: float(value)}), config, initial_nodes, targets,
-            backend=backend, distribution_grid=distribution_grid,
+            params._replace(**{parameter: float(value)}),
+            config,
+            initial_nodes,
+            targets,
+            backend=backend,
+            distribution_grid=distribution_grid,
         )
         evaluations.append(evaluation)
         return evaluation.objective.loss
 
     result = minimize_scalar(
-        objective, bounds=bounds, method="bounded",
+        objective,
+        bounds=bounds,
+        method="bounded",
         options={"xatol": parameter_tolerance, "maxiter": max_evaluations},
     )
     result.evaluations = evaluations

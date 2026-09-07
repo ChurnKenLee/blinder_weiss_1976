@@ -85,8 +85,13 @@ class PopulationResult:
 
 def _validate_initial_law(law: SyntheticInitialDistribution, asset_floor: float) -> float:
     scalars = (
-        law.asset_lower, law.asset_upper, law.log_human_capital_lower,
-        law.log_human_capital_upper, law.correlation, law.asset_floor_mass, asset_floor,
+        law.asset_lower,
+        law.asset_upper,
+        law.log_human_capital_lower,
+        law.log_human_capital_upper,
+        law.correlation,
+        law.asset_floor_mass,
+        asset_floor,
     )
     if not np.all(np.isfinite(scalars)):
         raise ValueError("initial distribution parameters must be finite")
@@ -138,29 +143,41 @@ def initial_quadrature(
     density = 1.0 + 3.0 * law.correlation * (2.0 * u - 1.0) * (2.0 * v - 1.0)
     interior_weights = interior_mass * np.outer(unit_weights, unit_weights) * density
     log_capital_span = law.log_human_capital_upper - law.log_human_capital_lower
-    assets = np.concatenate((
-        (law.asset_lower + (law.asset_upper - law.asset_lower) * u).ravel(),
-        np.full(nodes_per_dimension, asset_floor),
-        np.asarray([atom.assets for atom in law.atoms]),
-    ))
-    capital = np.concatenate((
-        np.exp(law.log_human_capital_lower + log_capital_span * v).ravel(),
-        np.exp(law.log_human_capital_lower + log_capital_span * unit_nodes),
-        np.asarray([atom.human_capital for atom in law.atoms]),
-    ))
-    weights = np.concatenate((
-        interior_weights.ravel(), law.asset_floor_mass * unit_weights,
-        np.asarray([atom.mass for atom in law.atoms]),
-    ))
+    assets = np.concatenate(
+        (
+            (law.asset_lower + (law.asset_upper - law.asset_lower) * u).ravel(),
+            np.full(nodes_per_dimension, asset_floor),
+            np.asarray([atom.assets for atom in law.atoms]),
+        )
+    )
+    capital = np.concatenate(
+        (
+            np.exp(law.log_human_capital_lower + log_capital_span * v).ravel(),
+            np.exp(law.log_human_capital_lower + log_capital_span * unit_nodes),
+            np.asarray([atom.human_capital for atom in law.atoms]),
+        )
+    )
+    weights = np.concatenate(
+        (
+            interior_weights.ravel(),
+            law.asset_floor_mass * unit_weights,
+            np.asarray([atom.mass for atom in law.atoms]),
+        )
+    )
     # A single initial roundoff correction; never used to hide transport drift.
     weights /= weights.sum()
-    component = np.concatenate((
-        np.full(nodes_per_dimension**2, "interior"),
-        np.full(nodes_per_dimension, "asset_floor"),
-        np.full(len(law.atoms), "point_atom"),
-    ))
+    component = np.concatenate(
+        (
+            np.full(nodes_per_dimension**2, "interior"),
+            np.full(nodes_per_dimension, "asset_floor"),
+            np.full(len(law.atoms), "point_atom"),
+        )
+    )
     return PopulationNodes(
-        assets, capital, weights, component,
+        assets,
+        capital,
+        weights,
+        component,
         "synthetic bounded correlated initial law; Gauss-Legendre probability quadrature",
     )
 
@@ -186,9 +203,7 @@ def sample_initial_population(
     selector, u, uniform_v = rng.uniform(size=(3, people))
     k = 3.0 * law.correlation * (2.0 * u - 1.0)
     # F(V | U=u) = (1-k)*V + k*V²; rationalization is stable near k=0.
-    v = 2.0 * uniform_v / (
-        1.0 - k + np.sqrt((1.0 - k)**2 + 4.0 * k * uniform_v)
-    )
+    v = 2.0 * uniform_v / (1.0 - k + np.sqrt((1.0 - k) ** 2 + 4.0 * k * uniform_v))
     assets = law.asset_lower + (law.asset_upper - law.asset_lower) * u
     capital = np.exp(
         law.log_human_capital_lower
@@ -206,11 +221,16 @@ def sample_initial_population(
     for atom in law.atoms:
         selected = (selector >= lower) & (selector < lower + atom.mass)
         assets[selected], capital[selected], component[selected] = (
-            atom.assets, atom.human_capital, "point_atom"
+            atom.assets,
+            atom.human_capital,
+            "point_atom",
         )
         lower += atom.mass
     return PopulationNodes(
-        assets, capital, np.full(people, 1.0 / people), component,
+        assets,
+        capital,
+        np.full(people, 1.0 / people),
+        component,
         f"IID cohort from synthetic bounded correlated initial law; seed={seed}",
     )
 
@@ -239,11 +259,15 @@ def simulate_population(
         if distribution_grid is None:
             raise ValueError("transport requires an explicit distribution_grid")
         initial_mass = initialize_distribution(
-            distribution_grid, initial_nodes.assets, initial_nodes.human_capital,
+            distribution_grid,
+            initial_nodes.assets,
+            initial_nodes.human_capital,
             weights=initial_nodes.weights,
         )
         simulation = simulate_distribution(
-            solution, distribution_grid, initial_mass,
+            solution,
+            distribution_grid,
+            initial_mass,
             participation_hours_threshold=participation_hours_threshold,
             store_snapshots=store_snapshots,
         )
@@ -257,15 +281,14 @@ def simulate_population(
         )
         diagnostics = (
             asdict(simulation.diagnostics)
-            if is_dataclass(simulation.diagnostics) else dict(simulation.diagnostics)
+            if is_dataclass(simulation.diagnostics)
+            else dict(simulation.diagnostics)
         )
         return PopulationResult(backend, simulation.moments, state_moments, diagnostics, simulation)
     cohort = simulate_cohort(
         solution, initial_nodes.assets, initial_nodes.human_capital, weights=initial_nodes.weights
     )
-    moments = cohort_moments(
-        cohort, participation_hours_threshold=participation_hours_threshold
-    )
+    moments = cohort_moments(cohort, participation_hours_threshold=participation_hours_threshold)
     floor = solution.config.asset_minimum
     state_moments = PopulationStateMoments(
         time=solution.time.copy(),
