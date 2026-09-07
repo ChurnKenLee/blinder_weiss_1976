@@ -8,8 +8,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import pytest
-from blinder_weiss import BellmanConfig, benchmark_params, bequest_utility, solve_bellman
-from blinder_weiss import bellman
+from blinder_weiss import BellmanConfig, bellman, benchmark_params, bequest_utility, solve_bellman
 
 
 def _small_config() -> BellmanConfig:
