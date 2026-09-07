@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 import jax
 import numpy as np
 import pytest
@@ -40,7 +42,7 @@ def test_simulation_domain_flag_distinguishes_roundoff_from_real_exit(
     axis: int,
     side: str,
     roundoff_only: bool,
-    policy_method: str,
+    policy_method: Literal["greedy", "interpolate"],
 ) -> None:
     solution = domain_solution
     grids = (solution.asset_grid, solution.log_human_capital_grid)
