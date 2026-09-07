@@ -5,18 +5,19 @@ Run ``python tools/ipums_download.py --help``. API credentials are read from
 IPUMS_API_KEY, IPUMS_API_KEY_FILE, or the private file /tmp/ipums_api_key.
 Only the explicit ``submit`` command creates a new extract.
 """
+
 from __future__ import annotations
 
 import argparse
 import hashlib
 import json
 import os
-from pathlib import Path
 import re
 import stat
 import sys
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPRedirectHandler, Request, build_opener
@@ -27,7 +28,7 @@ API_HOST = "api.ipums.org"
 
 
 def now():
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def atomic_json(path, value):
@@ -50,8 +51,15 @@ def public_url(url):
 
 
 def is_ipums_host(host):
-    return bool(host and (host == "ipums.org" or host.endswith(".ipums.org")
-                         or host == "atusdata.org" or host.endswith(".atusdata.org")))
+    return bool(
+        host
+        and (
+            host == "ipums.org"
+            or host.endswith(".ipums.org")
+            or host == "atusdata.org"
+            or host.endswith(".atusdata.org")
+        )
+    )
 
 
 class SafeRedirect(HTTPRedirectHandler):
@@ -84,9 +92,13 @@ def open_url(url, *, key=None, payload=None):
     try:
         return OPENER.open(Request(url, data=body, headers=headers), timeout=60)
     except HTTPError as exc:
-        raise RuntimeError(f"IPUMS request failed with HTTP {exc.code}; response body withheld") from None
+        raise RuntimeError(
+            f"IPUMS request failed with HTTP {exc.code}; response body withheld"
+        ) from None
     except URLError:
-        raise RuntimeError("IPUMS network request failed; rerun a read command to check status") from None
+        raise RuntimeError(
+            "IPUMS network request failed; rerun a read command to check status"
+        ) from None
 
 
 def api_key():
@@ -100,25 +112,33 @@ def api_key():
         key = path.read_text().strip()
         if key:
             return key
-    raise RuntimeError("No IPUMS API key: configure IPUMS_API_KEY privately or /tmp/ipums_api_key (mode 600), with USA and ATUS registration")
+    raise RuntimeError(
+        "No IPUMS API key: configure IPUMS_API_KEY privately or /tmp/ipums_api_key (mode 600), with USA and ATUS registration"
+    )
 
 
 def api(collection, number=None, payload=None):
     suffix = f"/{int(number)}" if number is not None else ""
-    url = f"https://{API_HOST}/extracts{suffix}?" + urlencode({"collection": collection, "version": 2})
+    url = f"https://{API_HOST}/extracts{suffix}?" + urlencode(
+        {"collection": collection, "version": 2}
+    )
     with open_url(url, key=api_key(), payload=payload) as response:
         return json.load(response)
 
 
 def extract_summary(response, collection):
     definition = response.get("extractDefinition", {})
-    return {"collection": collection, "number": response.get("number"),
-            "status": response.get("status"), "checked_at": now(),
-            "samples": sorted(definition.get("samples", {})),
-            "variables": sorted(definition.get("variables", {})),
-            "data_format": definition.get("dataFormat"),
-            "data_structure": definition.get("dataStructure"),
-            "download_file_count": len(response.get("downloadLinks", {}))}
+    return {
+        "collection": collection,
+        "number": response.get("number"),
+        "status": response.get("status"),
+        "checked_at": now(),
+        "samples": sorted(definition.get("samples", {})),
+        "variables": sorted(definition.get("variables", {})),
+        "data_format": definition.get("dataFormat"),
+        "data_structure": definition.get("dataStructure"),
+        "download_file_count": len(response.get("downloadLinks", {})),
+    }
 
 
 def save_download(url, destination, *, key=None, expected_bytes=None, expected_sha256=None):
@@ -130,7 +150,10 @@ def save_download(url, destination, *, key=None, expected_bytes=None, expected_s
     digest = hashlib.sha256()
     size = 0
     try:
-        with open_url(url, key=key) as response, tempfile.NamedTemporaryFile(dir=staging, delete=False) as stream:
+        with (
+            open_url(url, key=key) as response,
+            tempfile.NamedTemporaryFile(dir=staging, delete=False) as stream,
+        ):
             temporary = Path(stream.name)
             content_type = response.headers.get("Content-Type", "")
             while chunk := response.read(1024 * 1024):
@@ -143,15 +166,25 @@ def save_download(url, destination, *, key=None, expected_bytes=None, expected_s
             raise RuntimeError("Downloaded file size differs from IPUMS metadata")
         if expected_sha256 and digest.hexdigest() != expected_sha256.lower():
             raise RuntimeError("Downloaded file checksum differs from IPUMS metadata")
-        if destination.exists() and hashlib.sha256(destination.read_bytes()).hexdigest() != digest.hexdigest():
+        if (
+            destination.exists()
+            and hashlib.sha256(destination.read_bytes()).hexdigest() != digest.hexdigest()
+        ):
             raise RuntimeError("Existing completed file differs; use a new output directory")
         temporary.replace(destination)
     finally:
         if temporary and temporary.exists():
             temporary.unlink()
-    return {"file": destination.name, "url": public_url(url), "downloaded_at": now(),
-            "bytes": size, "sha256": digest.hexdigest(), "content_type": content_type,
-            "ipums_sha256": expected_sha256, "ipums_bytes": expected_bytes}
+    return {
+        "file": destination.name,
+        "url": public_url(url),
+        "downloaded_at": now(),
+        "bytes": size,
+        "sha256": digest.hexdigest(),
+        "content_type": content_type,
+        "ipums_sha256": expected_sha256,
+        "ipums_bytes": expected_bytes,
+    }
 
 
 def download_extract(collection, number, output):
@@ -159,10 +192,17 @@ def download_extract(collection, number, output):
     summary = extract_summary(response, collection)
     if summary["status"] not in {"produced", "completed"}:
         print(json.dumps(summary, indent=2))
-        raise RuntimeError("Extract is not complete; poll this same extract number, do not resubmit")
+        raise RuntimeError(
+            "Extract is not complete; poll this same extract number, do not resubmit"
+        )
     links = response.get("downloadLinks", {})
-    if not any(re.search(r"\.(dat|csv|dta|sav|sas7bdat)(\.gz|\.zip)?$", urlsplit(v.get("url", "")).path) for v in links.values()):
-        raise RuntimeError("No microdata download link is available yet; poll this same extract number")
+    if not any(
+        re.search(r"\.(dat|csv|dta|sav|sas7bdat)(\.gz|\.zip)?$", urlsplit(v.get("url", "")).path)
+        for v in links.values()
+    ):
+        raise RuntimeError(
+            "No microdata download link is available yet; poll this same extract number"
+        )
     destination = output / "raw" / f"{collection}_{int(number):05d}"
     manifest = {"extract": summary, "microdata_downloaded": False, "files": []}
     key = api_key()
@@ -173,9 +213,13 @@ def download_extract(collection, number, output):
         if not re.fullmatch(r"[A-Za-z0-9_.-]+", name) or name in {".", ".."} or name in used_names:
             raise RuntimeError("Unexpected or duplicate IPUMS download filename")
         used_names.add(name)
-        entry = save_download(url, destination / name,
-                              key=key if urlsplit(url).hostname == API_HOST else None,
-                              expected_bytes=link.get("bytes"), expected_sha256=link.get("sha256"))
+        entry = save_download(
+            url,
+            destination / name,
+            key=key if urlsplit(url).hostname == API_HOST else None,
+            expected_bytes=link.get("bytes"),
+            expected_sha256=link.get("sha256"),
+        )
         entry["kind"] = label
         manifest["files"].append(entry)
         print(f"Downloaded {collection} extract {number}: {name} ({entry['bytes']} bytes)")
@@ -187,6 +231,7 @@ def download_extract(collection, number, output):
 def fetch_metadata(output):
     # HTML parsing is optional; authenticated downloads use only the Python standard library.
     from bs4 import BeautifulSoup
+
     sources = json.loads((output / "metadata_sources.json").read_text())
     records = []
     samples = {}
@@ -199,7 +244,13 @@ def fetch_metadata(output):
         else:
             soup = BeautifulSoup(raw, "html.parser")
             if source.get("kind") == "samples":
-                samples[source["collection"]] = sorted({x.get("value") for x in soup.select('input[name="selectedSamples[]"]') if x.get("value")})
+                samples[source["collection"]] = sorted(
+                    {
+                        x.get("value")
+                        for x in soup.select('input[name="selectedSamples[]"]')
+                        if x.get("value")
+                    }
+                )
             expected = source.get("variable")
             if expected:
                 headings = soup.find_all(["h1", "h2"])
@@ -207,7 +258,9 @@ def fetch_metadata(output):
                     raise RuntimeError(f"Variable documentation is missing for {expected}")
             for node in soup(["script", "style", "input", "meta"]):
                 node.decompose()
-            text = "\n".join(line.strip() for line in soup.get_text("\n").splitlines() if line.strip())
+            text = "\n".join(
+                line.strip() for line in soup.get_text("\n").splitlines() if line.strip()
+            )
             content = (text + "\n").encode()
         path = output / relative
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -217,12 +270,23 @@ def fetch_metadata(output):
             temporary = Path(stream.name)
             stream.write(content)
         temporary.replace(path)
-        records.append({**source, "downloaded_at": now(), "bytes": len(content),
-                        "sha256": hashlib.sha256(content).hexdigest(),
-                        "source_response_sha256": hashlib.sha256(raw).hexdigest(),
-                        "representation": "original YAML" if source.get("format") == "yaml" else "visible HTML text; scripts, inputs and metadata tags removed"})
+        records.append(
+            {
+                **source,
+                "downloaded_at": now(),
+                "bytes": len(content),
+                "sha256": hashlib.sha256(content).hexdigest(),
+                "source_response_sha256": hashlib.sha256(raw).hexdigest(),
+                "representation": "original YAML"
+                if source.get("format") == "yaml"
+                else "visible HTML text; scripts, inputs and metadata tags removed",
+            }
+        )
     atomic_json(output / "metadata/available_samples.json", samples)
-    atomic_json(output / "metadata/manifest.json", {"downloaded_at": now(), "microdata_downloaded": False, "files": records})
+    atomic_json(
+        output / "metadata/manifest.json",
+        {"downloaded_at": now(), "microdata_downloaded": False, "files": records},
+    )
     return {"metadata_files": len(records), "microdata_downloaded": False}
 
 
@@ -250,14 +314,27 @@ def main():
             response = api(args.collection, payload=spec)
             summary = extract_summary(response, args.collection)
             # API results can contain authenticated download URLs: persist only this allowlist.
-            atomic_json(args.output / "requests" / f"{args.collection}_{summary['number']}.json", {"request": spec, "result": summary})
+            atomic_json(
+                args.output / "requests" / f"{args.collection}_{summary['number']}.json",
+                {"request": spec, "result": summary},
+            )
             print(json.dumps(summary, indent=2))
         elif args.command == "status":
-            print(json.dumps(extract_summary(api(args.collection, args.number), args.collection), indent=2))
+            print(
+                json.dumps(
+                    extract_summary(api(args.collection, args.number), args.collection), indent=2
+                )
+            )
         else:
             response = api(args.collection)
-            extracts = response.get("data", response.get("extracts", [])) if isinstance(response, dict) else response
-            print(json.dumps([extract_summary(item, args.collection) for item in extracts], indent=2))
+            extracts = (
+                response.get("data", response.get("extracts", []))
+                if isinstance(response, dict)
+                else response
+            )
+            print(
+                json.dumps([extract_summary(item, args.collection) for item in extracts], indent=2)
+            )
     except (RuntimeError, OSError, ValueError) as exc:
         # Never print HTTP bodies or traceback request objects that may contain credentials.
         print(f"Error: {exc}", file=sys.stderr)
