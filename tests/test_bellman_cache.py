@@ -171,7 +171,9 @@ def test_greedy_recovery_and_rollout_reuse_parameter_traces(
     for actual, expected in zip(changed_policy, reference, strict=True):
         np.testing.assert_allclose(actual, expected, rtol=1e-11, atol=1e-11)
 
-    state = jnp.asarray([changed_params.initial_assets, np.log(changed_params.initial_human_capital)])
+    state = jnp.asarray(
+        [changed_params.initial_assets, np.log(changed_params.initial_human_capital)]
+    )
     for period in range(config.periods):
         incumbent = jnp.stack(
             bellman.policy_at(changed, period, float(state[0]), float(jnp.exp(state[1]))),
