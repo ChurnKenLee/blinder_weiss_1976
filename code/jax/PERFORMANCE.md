@@ -1,185 +1,195 @@
 # GPU performance and policy accuracy
 
-Measured on 2026-09-07 using the NVIDIA RTX PRO 6000 Blackwell Server Edition,
-JAX/JAXlib/CUDA plugin 0.11.0, float64, and Python 3.13.11 in the live environment.
-The project dependency manifest specifies a different reproducible environment
-(Python >=3.14 and JAX 0.10.1); these measurements describe the actual installed
-runtime. They are not measurements of the RTX 5070 Ti.
+Measured on 2026-09-07 with the NVIDIA RTX PRO 6000 Blackwell Server Edition,
+JAX/JAXlib/CUDA plugin 0.11.0, float64, and Python 3.13.11. The project manifest
+specifies Python >=3.14 and JAX 0.10.1; these measurements describe the installed
+runtime. They are not RTX 5070 Ti measurements.
 
-## Implemented improvements
+Repeated solves are substantially faster. The latest bicubic run passes the
+reported value-shape audit, but population accuracy and policy smoothness are
+not yet accepted: the current human-capital domain truncates retirement paths,
+large cohort discrepancies remain, and retirement consumption still oscillates.
 
-- Backward induction, greedy off-grid recovery, and population rollout reuse
-  compiled functions across changes in model parameters. Static grid settings,
-  device, and batch shape determine compilation; model parameter values do not.
-- Known curved asset and uniform log-human-capital grids use arithmetic cell
-  lookup with exact-node rounding corrections. General interpolation helpers
-  retain binary search for arbitrary grids.
-- `consumption_fraction_minimum` now sets the global seed-grid endpoint only.
-  Local refinement can reach the actual consumption floor. Previously its
-  effective lower bound increased as the time step decreased.
-- `BellmanConfig(consumption_polish=True)` optionally maximizes consumption
-  exactly conditional on hours and training for bilinear continuation. It scans
-  all asset interpolation intervals and uses analytic stationary points and
-  endpoints; terminal bequest uses bracketed marginal-utility bisection.
-  This is conditional optimality, not proof of global optimality over all
-  controls. Finite-search choices in subsequent periods can still change.
-- `BellmanConfig(value_interpolation="pchip")` selects experimental sequential
-  cubic continuation: PCHIP in assets, then log human capital. Asset derivative
-  tables are prepared once per age. Recovery, value queries, and diagnostics
-  use the same representation. Node policy interpolation remains bilinear;
-  greedy recovery is still the default simulator. Exact bilinear consumption
-  polish cannot be combined with PCHIP.
-- `simulate_cohort` batches heterogeneous lifecycles in one compiled scan.
-  `cohort_moments` returns weighted model age profiles. IPOPT is imported only
-  when its separate native backend is requested.
+## Implemented changes
 
-The cache correction follows the function-identity and dynamic-input rules in
-[JAX's compilation documentation](https://docs.jax.dev/en/latest/201/jit.html).
-Timings synchronize on completed results and include device-to-host output
-transfer, consistent with [JAX's benchmarking guidance](https://docs.jax.dev/en/latest/201/profiling.html).
+- Backward induction, greedy recovery, and population rollout reuse compiled
+  functions across model-parameter changes. Grid settings, device, and batch
+  shape remain static. Search batches limit intermediate memory, and known
+  curved/uniform grids use arithmetic cell lookup with node-rounding corrections.
+- The consumption seed-grid minimum no longer restricts local refinement above
+  the actual consumption floor. Optional bilinear consumption polish searches
+  each asset interpolation interval conditional on hours and training.
+- `value_interpolation="monotone_bicubic"` uses jointly limited bicubic Hermite
+  continuation. Neighbor propagation and destination candidates address
+  optimizer misses while retaining feasible, improving controls. Propagation
+  accuracy matters for cubic shape; see the audit below.
+- The earnings perspective has a bounded tangent extension for infeasible
+  `q > h` trials near retirement. Feasible values and gradients are unchanged.
+  Direct-path diagnostics reconstruct admissible multipliers when SLSQP returns
+  stale duals, without relaxing stationarity or feasibility thresholds.
+- `simulate_cohort` performs one batched greedy rollout; `cohort_moments` returns
+  weighted model age profiles. Parameter values and initial states can change
+  without recompilation at fixed configuration and cohort size.
 
-## Measured timings
+The cache design follows [JAX compilation rules](https://docs.jax.dev/en/latest/201/jit.html).
+Timings synchronize on completed results and include host transfer, following
+[JAX benchmarking guidance](https://docs.jax.dev/en/latest/201/profiling.html).
 
-| Configuration | Original repeated solve | Improved repeated solve |
+## Measured speed and retained history
+
+Coarse means 70 periods, 31 x 25 states, 11 x 11 x 15 control seeds, and 24 local
+steps. Fine means 140 periods, 61 x 49 states, 15 x 15 x 19 seeds, and 48 steps.
+Both currently use assets `[1e-4,35]` and log human capital `[-2,2.25]`.
+
+| Repeated solve | Original | Improved bilinear | Historical sequential PCHIP | Latest bicubic |
+|---|---:|---:|---:|---:|
+| Coarse | 4.63–4.94 s | 0.73–0.79 s | 0.93 s | 1.08–1.09 s |
+| Fine | 11.43 s | 3.96 s with consumption polish | 4.53 s | 4.78–4.79 s |
+
+Coarse bilinear with conditional consumption polish took 0.82 s. Original
+calls rebuilt a compiled closure each time; improved calls reuse compilation,
+including after a 1% leisure-weight change. The original baseline is commit
+`f331628`, with only the unused IPOPT import moved in its temporary benchmark copy.
+
+Latest results are [`bicubic_adaptive_default/report.json`](../../output/solver_benchmarks/bicubic_adaptive_default/report.json)
+and [`bicubic_exact_fine/report.json`](../../output/solver_benchmarks/bicubic_exact_fine/report.json).
+The coarse run used 64 neighbor sweeps with tolerance `1e-13`; the fine run used
+128 sweeps and tolerance zero. Both enabled destination candidates. First calls
+including process setup took 9.65 s and 13.94 s respectively. The positive
+coarse stopping tolerance is retained here as a measured configuration, not an
+accepted propagation setting.
+
+Historical coarse bilinear cohort rollout, checks, host transfer, and moments
+took 0.72 s for 100 people and 0.81 s for 1,000 after compilation. Historical
+coarse PCHIP solve + 256-person rollout + a 28-moment synthetic loss took
+1.73–1.74 s, with a 12.26 s first call. Those are implementation-specific
+measurements, not timings for the latest cubic calibration pipeline. The new
+259-person validation rollouts, including their first compilation, took 5.92 s
+coarse and 7.85 s fine. No warm cohort timing is inferred from those first calls.
+
+## Current path and population evidence
+
+[`calibration_grid_validation.json`](../../output/solver_benchmarks/calibration_grid_validation.json)
+and its NPZ compare the same 256 weighted types: seed 125, assets uniform on
+`[2,8]`, log human capital uniform on `[-0.25,0.25]`, and normalized weights
+originally drawn on `[0.5,1.5]`. Three zero-weight reference probes share the
+batch. States are compared at common quarter-year boundaries using exact
+within-period transitions; controls and moments use common interval midpoints.
+
+All three direct references pass the existing independent integration and KKT
+checks at 48 Hermite–Simpson intervals, SLSQP objective tolerance `1e-11`. They
+are accepted individual meshes, not mesh-converged truth. Reference state
+comparisons independently integrate their linear controls with DOP853; control
+comparisons use the direct controls at Bellman-period midpoints.
+
+| Initial `(A,K)` | Utility shortfall, coarse → fine | Fine consumption RMSE | Fine hours RMSE | Fine training RMSE |
+|---|---:|---:|---:|---:|
+| Baseline `(5,1)` | 0.007759 → 0.001452 | 0.002021 | 0.000827 | 0.001416 |
+| Low `(2,0.8)` | 0.012261 → 0.001848 | 0.001825 | 0.000802 | 0.002209 |
+| High `(8,1.2)` | 1.325745 → 1.309049 | 0.012589 | 0.125744 | 0.126012 |
+
+Utility shortfall is reference utility minus realized greedy utility. Fine
+asset/human-capital RMSE is 0.01334/0.00406 for the baseline, 0.01230/0.00423 for
+the low type, and 0.15115/0.05601 for the high type. Baseline reference utility
+is -99.4888795; the low and high references are -118.5130407 and -83.9288792.
+
+**The high-type discrepancy has a concrete domain cause.** Its direct retired
+path reaches `log K=-3.28086` (`K=0.037596`). Both Bellman paths contact the
+artificial `log K=-2` floor around age 56 and then maintain training near
+`q=delta/a=0.22727`; terminal hours remain about 0.28–0.30 instead of retirement.
+The fine cohort spends 10.9% of weighted sampled state-age observations in its
+lowest human-capital cell. A successful domain-containment flag therefore does
+not establish that the computational boundary is economically harmless.
+
+Changes in weighted age profiles from coarse to fine are:
+
+| Model moment | RMS change | Maximum absolute change |
 |---|---:|---:|
-| 70 periods, 31 x 25 states, 11 x 11 x 15 control seeds, 24 local steps | 4.63–4.94 s | 0.73–0.79 s, bilinear |
-| Same, conditional consumption polish | — | 0.82 s |
-| Same, experimental PCHIP | — | 0.93 s |
-| 140 periods, 61 x 49 states, 15 x 15 x 19 seeds, 48 local steps | 11.43 s | 3.96 s, bilinear + polish |
-| Same fine grid, experimental PCHIP | — | 4.53 s |
+| Consumption | 0.007629 | 0.032643 |
+| Active time `h` | 0.007574 | 0.028130 |
+| Training time `q` | 0.007421 | 0.028130 |
+| Participation, `h > 0.02` | 0.020061 | 0.055738 |
+| Earnings | 0.014891 | 0.041802 |
 
-Original measurements rebuild the original compiled closure on every call.
-Improved warm calls reuse compilation, including after a 1% change in leisure
-weight. Initial calls are slower: roughly 7 s for coarse PCHIP and 11 s for fine
-PCHIP including first-process setup. Avoid treating an asynchronous kernel
-launch as a completed calibration evaluation.
+Participation changes correspond to 2.01 percentage points RMS and 5.57 points
+maximum. Average profiles conceal much larger individual discrepancies: maximum
+asset change is 11.836 for type 200; type 177 reaches changes of 3.476 in human
+capital, 0.477 in consumption, 0.583 in hours, and 0.588 in training. The largest
+individual utility change is 0.60314 for type 56. Type indices are zero-based
+positions in the saved fixed cohort.
 
-A 70-period greedy cohort rollout, feasibility checks, host transfer, and
-weighted moments took 0.72 s for 100 people and 0.81 s for 1,000 people after
-compilation. Initial cohort calls took about 5 s. These measurements use the
-coarse bilinear solution with conditional consumption polish and synthetic
-initial assets in [2,8], log human capital in [-0.25,0.25], seed 125. They do not
-measure data loading, estimation, or the cost of a fine-grid cohort.
+Types 177 and 200 follow schooling/borrowing-floor paths on the coarse grid,
+but choose a different initial training pattern on the fine grid and later
+contact the human-capital floor at ages 50.5 and 57. Their fine recovered-value
+minus realized-utility gaps are -0.21636 and 0.03151. Across all 256 types the
+maximum absolute gap is 0.33814 coarse and 0.21636 fine. These observations do
+not establish equivalent optima or population convergence. Grid/time/control
+settings and propagation tolerance changed together; neither run expands the
+domain, so the comparison cannot isolate those effects.
 
-A complete coarse PCHIP evaluation (solve, 256-person weighted rollout, and a
-28-moment synthetic loss) takes 1.73–1.74 s after compilation. The first call
-was 12.26 s. Repeating the baseline at the end reproduces zero synthetic loss
-exactly; +/-1% and +/-2% leisure-weight perturbations move the loss away from
-zero. These same-grid synthetic targets isolate numerical performance; they
-are not an empirical calibration. Reproduce with:
+## Shape and remaining smoothness limits
 
-```bash
-PYTHONPATH=code/jax python tools/benchmark_calibration.py \
-  --interpolation pchip --people 256 \
-  --output output/solver_benchmarks/calibration_pchip.json
-```
+The [`bicubic_exact_shape_audit.json`](../../output/solver_benchmarks/bicubic_exact_shape_audit.json)
+audit evaluates 46,513 full-domain queries at each of 141 ages: 6,558,333 points.
+All derivatives are finite, with zero asset or human-capital derivative counts
+below `-1e-8`. Minimum derivatives are 0.00040718 in assets and approximately
+-1.78e-15 in log human capital. Bicubic cell constraints have maximum cross-slope
+residual 4.34e-16; other reported shape residuals are zero.
 
-Raw results and arrays are in [`output/solver_benchmarks`](../../output/solver_benchmarks).
-The original numerical baseline is commit `f331628`; the temporary baseline
-copy only moved the unused IPOPT import to its backend branch.
+The zero-tolerance propagation setting matters: stopping at a positive `1e-13`
+tolerance left tiny optimizer-seed differences that cubic derivatives could
+amplify near retirement. The fine audit uses `neighbor_policy_tolerance=0.0`.
+Historical sequential two-dimensional PCHIP did not satisfy the same shape
+check: its fine grid reached `dV/dlog K` near -0.0229 at age 65. It remains an
+accuracy/speed comparison, not the accepted shape construction.
 
-## Accuracy and smoothness evidence
+Value monotonicity does not settle policy smoothness. On the saved baseline
+cohort probe, retirement consumption Euler RMS residual is 0.00807 per year
+coarse and 0.00919 fine; the fine maximum is 0.02556. The continuous retirement
+condition is `log(c[n+1]/c[n])/dt=(r-rho)/(1-consumption_power)=0.01`.
 
-At baseline economic parameters:
+An [independent scalar audit](../../output/solver_benchmarks/bicubic_adaptive_fine/retirement_scalar_audit.json)
+of the earlier fine cubic table reoptimized consumption at 12 saved retired
+states across feasible asset-cell intervals. Its largest consumption correction
+was 9.82e-6 and largest objective gain 2.69e-11; the selected-pair Euler RMS
+remained about 0.02221. The [reconstruction audit](../../output/solver_benchmarks/bicubic_adaptive_fine/retirement_reconstruction_audit.json)
+identifies sensitivity to limited asset slopes in flat retirement regions.
+This evidence points beyond inadequate scalar consumption optimization. Slope
+alternatives remain under investigation; none is documented here as a completed
+smoothness fix.
 
-| Quantity | Bilinear + polish, coarse | PCHIP, coarse | PCHIP, fine |
-|---|---:|---:|---:|
-| Initial represented value | -100.218064 | -99.542813 | -99.483157 |
-| Greedy realized utility | -99.525436 | -99.496576 | -99.490306 |
-| Represented value minus rollout utility | -0.692628 | -0.046237 | 0.007149 |
-| Consumption RMSE vs direct reference | 0.033048 | 0.003259 | 0.000685 |
-| Active-time RMSE vs direct reference | 0.006702 | 0.002012 | 0.000843 |
-| Training-time RMSE vs direct reference | 0.010044 | 0.003234 | 0.001380 |
-| Retirement consumption Euler residual, RMS per year | 0.044016 | 0.000840 | 0.000674 |
-
-The independent direct reference uses 48 Hermite–Simpson intervals and tightened
-SLSQP objective tolerance `1e-11`. Its utility is -99.4888795, projected KKT
-residual 2.42e-7, independently integrated asset error 1.48e-4, and human-capital
-relative error 1.14e-7. It passes the existing diagnostic thresholds, including
-the documented integration allowance at the borrowing boundary. This is one
-accepted mesh, not a mesh-convergence certificate. All four reference attempts
-are recorded in `direct_reference.json`.
-
-Control RMSE compares constant-period controls with the direct path at period
-midpoints. In unconstrained retirement the independent consumption condition is
-`log(c[n+1]/c[n])/dt = (r-rho)/(1-consumption_power) = 0.01`. The Euler comparison
-uses pairs of retired periods away from the asset floor. These are quantitative
-smoothness and economic consistency checks, not cosmetic smoothing of curves.
-See `lifecycle_comparison.png` and `accuracy_summary.json` for the paths and
-six-age dense derivative checks over A in [0.05,25] and log K in [-0.5,1].
-
-All three runs pass node feasibility and their own Bellman identity. The
-simulation domain check now allows `1e-10` boundary roundoff, matching control
-acceptance; a value such as `9.9999999999989e-5` at a `1e-4` floor is no longer
-reported as a substantive domain exit. Regression tests separately reject real
-exits.
-
-## Remaining acceptance work
-
-**PCHIP remains experimental.** One-dimensional PCHIP is C1 and shape-preserving,
-as documented by [SciPy](https://docs.scipy.org/doc/scipy/reference/generated/scipy.interpolate.PchipInterpolator.html).
-Sequential two-dimensional PCHIP does not guarantee coordinate monotonicity or
-ordering with respect to nodal values. Actual solved tables have small late-life
-negative derivatives with respect to human capital, including in the validation
-interior: the fine run reaches about -0.0229 at age 65. They shrink under the
-current refinement but have not disappeared. This rules out claiming that the
-full policy surface is numerically accepted for calibration.
-
-The next numerical experiment is a jointly monotone bicubic Hermite
-construction with limited first and mixed derivatives, following the
-[Carlson–Fritsch monotone bicubic method](https://epubs.siam.org/doi/10.1137/0726013).
-A port must independently verify all cell inequalities and both coordinate
-monotonicity constraints. Simply zeroing mixed derivatives or postprocessing
-policy plots does not establish those properties. Further acceptance needs:
-
-1. monotonicity and regime-aware smoothness over the state domain;
-2. stable values, policy regret, and population moments under state/time/control
-   and domain refinement;
-3. stable repeated parameter perturbations at proposed calibration settings;
-4. comparison against independent collocation paths beyond one initial state.
-
-The existing `accepted_node_solution` flag tests consistency and feasibility;
-it does not include shape or mesh convergence. No new experiment has been
+Further acceptance requires a domain that contains retirement decay, renewed
+heterogeneous comparisons after domain expansion, stable values and population
+moments under refinement, and resolution of the consumption oscillations. The
+`accepted_node_solution` flag checks consistency and feasibility; it does not
+include shape, domain independence, or mesh convergence. No new run has been
 marked `solve_bellman_converged(...).converged=True`.
 
-## Reproduction and calibration API
+## Reproduction and empirical calibration
 
-From an environment with the project dependencies and a CUDA-enabled JAX:
+Reproduce the measured narrow-domain fine run and fixed-cohort comparison:
 
 ```bash
 PYTHONPATH=code/jax python tools/benchmark_bellman.py \
-  --output output/solver_benchmarks/pchip_default \
-  --interpolation pchip --diagnostics --repeats 2
-
-PYTHONPATH=code/jax python tools/benchmark_bellman.py \
-  --output output/solver_benchmarks/pchip_fine \
+  --output output/solver_benchmarks/bicubic_exact_fine \
   --asset-nodes 61 --human-capital-nodes 49 --periods 140 \
   --control-nodes 15 --consumption-nodes 19 --refinement-steps 48 \
-  --interpolation pchip --diagnostics --repeats 2
+  --interpolation monotone_bicubic --neighbor-destinations \
+  --neighbor-sweeps 128 --neighbor-tolerance 0 --diagnostics --repeats 2
+
+PYTHONPATH=code/jax python tools/validate_calibration_grid.py \
+  --folders bicubic_adaptive_default bicubic_exact_fine \
+  --output output/solver_benchmarks/calibration_grid_validation.json
 ```
 
-```python
-from blinder_weiss import (
-    BellmanConfig, benchmark_params, solve_bellman,
-    simulate_cohort, cohort_moments,
-)
+Keep configuration and cohort size fixed within an estimation stage. The
+`solve_bellman`, `simulate_cohort`, and `cohort_moments` API supports repeated
+finite-difference or derivative-free evaluations; it does not promise valid
+derivatives through discrete policy selection.
 
-config = BellmanConfig(compute_platform="gpu")
-for leisure_weight in [1.0, 1.01, 0.99]:
-    solution = solve_bellman(benchmark_params(leisure_weight=leisure_weight), config)
-    cohort = simulate_cohort(solution, [2.0, 5.0, 8.0], [0.8, 1.0, 1.2],
-                             weights=[1.0, 2.0, 1.0])
-    moments = cohort_moments(cohort, participation_hours_threshold=0.02)
-```
-
-Keep discretization and cohort size fixed within an estimation stage. Changing
-parameter values or initial states reuses compiled kernels. This interface
-supports repeated derivative-free/finite-difference evaluations; it does not
-promise valid derivatives through discrete policy selection.
-
-The moments are model quantities, not automatically ACS/ATUS measurements.
-`h` is active time and includes training; a threshold on `h` is not automatically
-survey employment. Training `q`, effective earnings, calendar-age origin, time
-endowment, wage units, survey universes, and weights need an explicit empirical
-measurement specification. No ACS/ATUS data or estimated parameters were
-invented for this benchmark.
+Validated 2024 ACS and ATUS extracts are now downloaded and remotely backed up:
+see the [IPUMS acquisition and measurement README](../../data/ipums/README.md).
+This does not yet supply an empirical calibration. Survey universes, calendar
+ages, time endowment, active time versus employment, training coverage, wage
+units, and survey weighting still need an explicit measurement specification.
+No empirical moments or estimated parameters are claimed by these benchmarks.
