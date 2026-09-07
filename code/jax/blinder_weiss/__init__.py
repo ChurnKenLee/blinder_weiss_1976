@@ -27,6 +27,26 @@ from .bellman_convergence import (  # noqa: E402
     bellman_refinement_config,
     solve_bellman_converged,
 )
+from .calibration import (  # noqa: E402
+    MOMENT_UNITS,
+    AgeMomentTarget,
+    CalibrationEvaluation,
+    CalibrationTargets,
+    MomentLoss,
+    evaluate_calibration,
+    fit_scalar_calibration,
+    weighted_age_moment_loss,
+)
+from .continuum import (  # noqa: E402
+    InitialAtom,
+    PopulationNodes,
+    PopulationResult,
+    PopulationStateMoments,
+    SyntheticInitialDistribution,
+    initial_quadrature,
+    sample_initial_population,
+    simulate_population,
+)
 from .diagnostics import (  # noqa: E402
     PathDiagnostics,
     diagnose_path,
@@ -54,6 +74,22 @@ from .solver import (  # noqa: E402
 )
 
 __all__ = [
+    "MOMENT_UNITS",
+    "AgeMomentTarget",
+    "CalibrationEvaluation",
+    "CalibrationTargets",
+    "MomentLoss",
+    "evaluate_calibration",
+    "fit_scalar_calibration",
+    "weighted_age_moment_loss",
+    "InitialAtom",
+    "PopulationNodes",
+    "PopulationResult",
+    "PopulationStateMoments",
+    "SyntheticInitialDistribution",
+    "initial_quadrature",
+    "sample_initial_population",
+    "simulate_population",
     "BellmanConfig",
     "BellmanConvergenceConfig",
     "BellmanConvergenceLevel",
