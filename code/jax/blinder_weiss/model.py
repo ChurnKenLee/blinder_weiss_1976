@@ -79,19 +79,25 @@ def earnings_tradeoff_prime(
 
 
 def effective_earnings_share(hours: Array, training_time: Array) -> Array:
-    """Return ``h * g(q / h)`` without dividing by hours.
+    """Return the earnings perspective with a stable infeasible extension.
 
-    ``q = h * x`` is time spent accumulating human capital. The quadratic
-    benchmark tradeoff has ``g(x) = 1 - b*x - b**2*x**2``, so its perspective
-    is continuous at retirement ``(h, q) = (0, 0)``. The NLP imposes
-    ``0 <= q <= h``.
+    On the economic control set ``0 <= q <= h``, this is exactly
+    ``h * g(q / h) = h - b*q - b**2*q**2/h``, continuously extended to
+    retirement ``(h, q) = (0, 0)``. Nonlinear optimizers can evaluate tiny
+    violations ``q > h`` near retirement. Continue the quadratic loss there
+    by its tangent ``2*q - h`` so these trials have bounded derivatives.
+    This extension is concave in earnings and C1 across positive ``q = h``;
+    it changes neither feasible values nor their derivatives. At the origin
+    the quadratic branch preserves the existing autodiff convention.
     """
 
     slope = jnp.sqrt(1.25) - 0.5
-    safe_hours = jnp.where(hours > 0.0, hours, 1.0)
-    return (
-        hours - slope * training_time - jnp.square(slope) * jnp.square(training_time) / safe_hours
-    )
+    quadratic_region = training_time <= hours
+    safe_hours = jnp.where((hours > 0.0) & quadratic_region, hours, 1.0)
+    quadratic_loss = jnp.square(slope) * jnp.square(training_time) / safe_hours
+    tangent_loss = jnp.square(slope) * (2.0 * training_time - hours)
+    loss = jnp.where(quadratic_region, quadratic_loss, tangent_loss)
+    return hours - slope * training_time - loss
 
 
 def flow_utility(
