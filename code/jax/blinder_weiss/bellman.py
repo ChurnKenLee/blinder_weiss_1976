@@ -257,12 +257,14 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
     if config.device_index < 0:
         raise ValueError("device_index cannot be negative")
     if config.consumption_polish and not (
-        params.consumption_weight > 0.0 and params.bequest_weight > 0.0
-        and params.consumption_power < 1.0 and params.bequest_power < 1.0
-        and params.consumption_power != 0.0 and params.bequest_power != 0.0
+        params.consumption_weight > 0.0
+        and params.bequest_weight > 0.0
+        and params.consumption_power < 1.0
+        and params.bequest_power < 1.0
+        and params.consumption_power != 0.0
+        and params.bequest_power != 0.0
     ):
         raise ValueError("consumption polish requires positive weights and concave nonzero powers")
-
 
 
 def _select_compute_device(config: BellmanConfig) -> Any:
@@ -400,8 +402,7 @@ def _regular_grid_index(grid: Array, points: Array, curvature: float) -> Array:
 
     unit = jnp.clip((points - grid[0]) / (grid[-1] - grid[0]), 0.0, 1.0)
     coordinate = unit if curvature == 1.0 else unit ** (1.0 / curvature)
-    index = jnp.clip(jnp.floor(coordinate * (grid.size - 1)).astype(jnp.int32),
-                     0, grid.size - 2)
+    index = jnp.clip(jnp.floor(coordinate * (grid.size - 1)).astype(jnp.int32), 0, grid.size - 2)
     # Inverting a curved grid can round to either side of an exact node.
     # These comparisons recover searchsorted(side="right") conventions.
     index = jnp.where(points < grid[index], jnp.maximum(index - 1, 0), index)
@@ -478,13 +479,21 @@ def _interpolate_value_jax(
 
     if config.value_interpolation == "pchip":
         return tensor_pchip_interpolate(
-            values, asset_grid, log_human_capital_grid, assets, log_human_capital,
+            values,
+            asset_grid,
+            log_human_capital_grid,
+            assets,
+            log_human_capital,
             asset_derivatives=asset_derivatives,
             asset_grid_curvature=config.asset_grid_curvature,
             uniform_log_grid=True,
         )
     return _interpolate_jax(
-        values, asset_grid, log_human_capital_grid, assets, log_human_capital,
+        values,
+        asset_grid,
+        log_human_capital_grid,
+        assets,
+        log_human_capital,
         asset_grid_curvature=config.asset_grid_curvature,
     )
 
@@ -499,10 +508,16 @@ def _interpolate_numpy(
     config: BellmanConfig | None = None,
 ) -> np.ndarray:
     if config is not None:
-        return np.asarray(_interpolate_value_jax(
-            jnp.asarray(values), jnp.asarray(asset_grid), jnp.asarray(log_human_capital_grid),
-            jnp.asarray(assets), jnp.asarray(log_human_capital), config,
-        ))
+        return np.asarray(
+            _interpolate_value_jax(
+                jnp.asarray(values),
+                jnp.asarray(asset_grid),
+                jnp.asarray(log_human_capital_grid),
+                jnp.asarray(assets),
+                jnp.asarray(log_human_capital),
+                config,
+            )
+        )
     return np.asarray(
         _interpolate_jax(
             jnp.asarray(values),
@@ -533,9 +548,7 @@ def _make_control_optimizer(
     hours_grid = (1.0 - config.leisure_floor) * _chebyshev_unit_nodes(config.hours_nodes)
     investment_grid = _chebyshev_unit_nodes(config.investment_nodes)
     candidate_hours, candidate_investment = jnp.meshgrid(hours_grid, investment_grid, indexing="ij")
-    active_controls = jnp.column_stack(
-        (candidate_hours.ravel(), candidate_investment.ravel())
-    )
+    active_controls = jnp.column_stack((candidate_hours.ravel(), candidate_investment.ravel()))
     consumption_fractions = config.consumption_fraction_minimum + (
         1.0 - config.consumption_fraction_minimum
     ) * _chebyshev_unit_nodes(config.consumption_nodes)
@@ -543,9 +556,7 @@ def _make_control_optimizer(
     # fractions remain vectorized within each block so the expensive
     # consumption-capacity calculation is not repeated for every fraction.
     active_batch_size = max(1, config.control_batch_size // config.consumption_nodes)
-    active_batch_count = (
-        active_controls.shape[0] + active_batch_size - 1
-    ) // active_batch_size
+    active_batch_count = (active_controls.shape[0] + active_batch_size - 1) // active_batch_size
     padded_active_count = active_batch_count * active_batch_size
     active_padding = padded_active_count - active_controls.shape[0]
     padded_active_controls = jnp.pad(active_controls, ((0, active_padding), (0, 0)))
@@ -563,7 +574,9 @@ def _make_control_optimizer(
         continuation_is_terminal: ArrayLike,
     ) -> Array:
         # PCHIP derivative tables are prepared once per age by optimize_states.
-        values = continuation_values[0] if config.value_interpolation == "pchip" else continuation_values
+        values = (
+            continuation_values[0] if config.value_interpolation == "pchip" else continuation_values
+        )
         derivatives = continuation_values[1] if config.value_interpolation == "pchip" else None
         interpolated = _interpolate_value_jax(
             values,
@@ -681,11 +694,15 @@ def _make_control_optimizer(
             next_states,
             continuation_is_terminal,
         )
-        values = flow_discount * flow_utility(
-            consumption,
-            control[..., 1],
-            params,
-        ) + beta * continuation
+        values = (
+            flow_discount
+            * flow_utility(
+                consumption,
+                control[..., 1],
+                params,
+            )
+            + beta * continuation
+        )
         feasible = (
             block_valid[None, :, None]
             & (consumption_capacity[:, :, None] >= config.consumption_floor)
@@ -694,9 +711,7 @@ def _make_control_optimizer(
             & (next_states[..., 1] >= log_human_capital_minimum - 1e-10)
             & (next_states[..., 1] <= log_human_capital_maximum + 1e-10)
         )
-        return jnp.where(feasible, values, -jnp.inf).reshape(
-            (flat_states.shape[0], -1)
-        )
+        return jnp.where(feasible, values, -jnp.inf).reshape((flat_states.shape[0], -1))
 
     def smooth_objective(
         controls: Array,
@@ -982,10 +997,7 @@ def _make_control_optimizer(
             atol=1e-10,
         )
         valid = (
-            representable
-            & same_consumption
-            & candidate_feasible
-            & jnp.isfinite(candidate_values)
+            representable & same_consumption & candidate_feasible & jnp.isfinite(candidate_values)
         )
         return translated_controls, candidate_values, valid
 
@@ -1196,9 +1208,15 @@ def _make_control_optimizer(
             )
         if config.consumption_polish:
             final_consumption, final_values = optimize_conditional_consumption(
-                flat_states, best_controls[:, 0], final_training,
-                continuation_values, asset_grid, log_human_capital_grid, params,
-                step=step, asset_minimum=asset_minimum,
+                flat_states,
+                best_controls[:, 0],
+                final_training,
+                continuation_values,
+                asset_grid,
+                log_human_capital_grid,
+                params,
+                step=step,
+                asset_minimum=asset_minimum,
                 consumption_floor=config.consumption_floor,
                 path_checkpoints=config.path_checkpoints,
                 continuation_is_terminal=continuation_is_terminal,
@@ -1267,9 +1285,7 @@ def _cached_backward_solver(config: BellmanConfig, compute_device: Any) -> Any:
     def backward_solve(
         params: ModelParams,
     ) -> tuple[Array, Array, Array, Array]:
-        bellman_step = _make_bellman_step(
-            params, config, asset_grid, log_human_capital_grid
-        )
+        bellman_step = _make_bellman_step(params, config, asset_grid, log_human_capital_grid)
         terminal_assets = jnp.broadcast_to(
             asset_grid[:, None], (config.asset_nodes, config.human_capital_nodes)
         )
@@ -1456,6 +1472,7 @@ def _cached_greedy_kernels(
     asset_grid_np, log_human_capital_grid_np = bellman_state_grids(config)
     asset_grid = jax.device_put(asset_grid_np, device)
     log_human_capital_grid = jax.device_put(log_human_capital_grid_np, device)
+
     def recover_policy(
         params: ModelParams,
         states: Array,
