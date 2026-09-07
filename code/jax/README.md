@@ -1,5 +1,7 @@
 # JAX lifecycle solvers
 
+For a terse description of the numerical workflow, see
+[SOLUTION_PROCEDURE.md](SOLUTION_PROCEDURE.md).
 For a derivation of the transcription, optimization theory, JAX autodiff, and
 the validation strategy, see [SOLUTION_STRATEGY.md](SOLUTION_STRATEGY.md).
 For the backward dynamic-programming implementation and feedback policies, see
@@ -98,24 +100,37 @@ The Bellman solver works backward over a bounded grid in assets and log human
 capital. Controls are constant within a Bellman period, allowing the state
 equations to be integrated exactly. The next-period value is evaluated by
 monotone bilinear interpolation; no finite-difference derivative of the value
-function is used.
+function is used. In the last decision period, the known bequest continuation
+is evaluated analytically so its singular negative-power boundary is not
+bilinearly interpolated.
 
-At each state node, a batched global control grid is followed by projected
-autodiff refinement. The largest feasible consumption is calculated from the
+At each state node, a memory-bounded global control search retains several
+leading candidates, then applies projected, bias-corrected autodiff refinement
+with per-state backtracking to every start. The next-age policy is included as
+a warm candidate. The largest feasible consumption is calculated from the
 asset floor at multiple within-period checkpoints, so the borrowing constraint
 enters the control set rather than a guessed boundary derivative. Candidate
 transitions outside the represented state domain are rejected.
 
-After local refinement, configurable neighboring-policy sweeps evaluate the
-absolute controls selected at poorer adjacent states. A feasible inherited
-control replaces the incumbent only when it raises value. This guards against
-isolated optimizer misses without mechanically altering values or breaking the
-Bellman identity.
+After local refinement, configurable bidirectional neighboring-policy sweeps
+evaluate the absolute controls selected at adjacent states. A feasible
+inherited control replaces the incumbent only when it raises value. This
+guards against isolated optimizer misses without mechanically altering values,
+smoothing genuine regime switches, or breaking the Bellman identity.
 
 The default annual configuration stores only 55,025 state-age values. The
 result includes value and policy arrays, a forward policy simulator, and
 diagnostics for Bellman consistency, feasibility, monotonicity, and domain
 containment. State, control, time, and domain convergence remain necessary.
+
+`solve_bellman_converged()` performs that convergence exercise automatically.
+It treats the supplied `BellmanConfig` domain as the target region, solves on
+progressively larger computational domains, and jointly refines periods,
+states, controls, constraint checkpoints, local-search starts, and refinement
+steps. Success requires two consecutive common-grid comparisons to satisfy the
+documented value, policy-regret, optimizer, shape, feasibility, and containment
+criteria. Hitting the level cap returns the finest solution with
+`converged=False`; it is never silently described as converged.
 
 The complete backward recursion is compiled as one `jax.lax.scan`. State and
 control grids, continuation values, and intermediate policies remain on the
@@ -169,13 +184,19 @@ The reusable feedback-policy API is:
 ```python
 from blinder_weiss import (
     BellmanConfig,
+    BellmanConvergenceConfig,
     diagnose_bellman,
     greedy_policy_at,
     simulate_policy,
-    solve_bellman,
+    solve_bellman_converged,
+    value_at,
 )
 
-solution = solve_bellman(config=BellmanConfig(compute_platform="gpu"))
+convergence = solve_bellman_converged(
+    config=BellmanConfig(compute_platform="gpu"),
+    convergence_config=BellmanConvergenceConfig(),
+)
+solution = convergence.solution
 greedy_simulation = simulate_policy(solution, policy_method="greedy")
 interpolated_simulation = simulate_policy(solution, policy_method="interpolate")
 diagnostics = diagnose_bellman(solution, greedy_simulation)
@@ -183,8 +204,12 @@ diagnostics = diagnose_bellman(solution, greedy_simulation)
 consumption, hours, training = greedy_policy_at(
     solution, period=20, assets=[2.0, 5.0], human_capital=[1.0, 1.5]
 )
+values = value_at(
+    solution, period=20, assets=[2.0, 5.0], human_capital=[1.0, 1.5]
+)
 
-print(solution.backend, solution.device)
+print(convergence.converged, convergence.stop_reason)
+print(solution.backend, solution.device, values)
 ```
 
 Run automated checks:

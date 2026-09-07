@@ -43,10 +43,16 @@ class BellmanConfig:
     above the economic borrowing limit when terminal utility is singular at
     zero.  It can be made very small; concentrating the curved asset grid near
     this value resolves the state-constraint region without a large uniform
-    grid. ``compute_platform="auto"`` uses a CUDA device when JAX can see one
-    and otherwise uses CPU. Select ``"gpu"`` to require CUDA rather than
-    allowing a silent CPU fallback; ``device_index`` selects among devices on
-    the chosen platform.
+    grid. ``refinement_learning_rate`` is the largest normalized Adam step;
+    smaller feasible steps are tried according to
+    ``refinement_backtracking_steps`` and ``refinement_backtracking_factor``.
+    ``refinement_starts`` controls how many leading global-grid candidates are
+    refined at each state. ``control_batch_size`` bounds the approximate
+    number of tensor-grid controls materialized per state at one time.
+    ``compute_platform="auto"`` uses a CUDA device when JAX can see one and
+    otherwise uses CPU. Select ``"gpu"`` to require CUDA rather than allowing
+    a silent CPU fallback; ``device_index`` selects among devices on the
+    chosen platform.
     """
 
     periods: int = 70
@@ -64,8 +70,12 @@ class BellmanConfig:
     consumption_floor: float = 1e-8
     leisure_floor: float = 1e-5
     path_checkpoints: int = 4
-    refinement_steps: int = 12
-    refinement_learning_rate: float = 0.025
+    refinement_steps: int = 24
+    refinement_learning_rate: float = 0.01
+    refinement_backtracking_steps: int = 6
+    refinement_backtracking_factor: float = 0.5
+    refinement_starts: int = 1
+    control_batch_size: int = 256
     neighbor_policy_sweeps: int = 2
     compute_platform: Literal["auto", "cpu", "gpu"] = "auto"
     device_index: int = 0
@@ -219,6 +229,17 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
         raise ValueError("refinement_steps cannot be negative")
     if config.refinement_learning_rate <= 0.0:
         raise ValueError("refinement_learning_rate must be positive")
+    if config.refinement_backtracking_steps < 1:
+        raise ValueError("refinement_backtracking_steps must be positive")
+    if not 0.0 < config.refinement_backtracking_factor < 1.0:
+        raise ValueError("refinement_backtracking_factor must lie in (0, 1)")
+    if config.refinement_starts < 1:
+        raise ValueError("refinement_starts must be positive")
+    candidate_count = config.hours_nodes * config.investment_nodes * config.consumption_nodes
+    if config.refinement_starts > candidate_count:
+        raise ValueError("refinement_starts cannot exceed the control-grid size")
+    if config.control_batch_size < 1:
+        raise ValueError("control_batch_size must be positive")
     if config.neighbor_policy_sweeps < 0:
         raise ValueError("neighbor_policy_sweeps cannot be negative")
     if config.compute_platform not in {"auto", "cpu", "gpu"}:
@@ -442,12 +463,23 @@ def _make_control_optimizer(
     hours_grid = (1.0 - config.leisure_floor) * _chebyshev_unit_nodes(config.hours_nodes)
     investment_grid = _chebyshev_unit_nodes(config.investment_nodes)
     candidate_hours, candidate_investment = jnp.meshgrid(hours_grid, investment_grid, indexing="ij")
-    candidate_hours = candidate_hours.ravel()
-    candidate_investment = candidate_investment.ravel()
-    candidate_training = candidate_hours * candidate_investment
+    active_controls = jnp.column_stack(
+        (candidate_hours.ravel(), candidate_investment.ravel())
+    )
     consumption_fractions = config.consumption_fraction_minimum + (
         1.0 - config.consumption_fraction_minimum
     ) * _chebyshev_unit_nodes(config.consumption_nodes)
+    # Batch the tensor control grid over (hours, investment). Consumption
+    # fractions remain vectorized within each block so the expensive
+    # consumption-capacity calculation is not repeated for every fraction.
+    active_batch_size = max(1, config.control_batch_size // config.consumption_nodes)
+    active_batch_count = (
+        active_controls.shape[0] + active_batch_size - 1
+    ) // active_batch_size
+    padded_active_count = active_batch_count * active_batch_size
+    active_padding = padded_active_count - active_controls.shape[0]
+    padded_active_controls = jnp.pad(active_controls, ((0, active_padding), (0, 0)))
+    valid_active_controls = jnp.arange(padded_active_count) < active_controls.shape[0]
     beta = jnp.exp(-params.rho * step)
     flow_discount = step * _exprel(-params.rho * step)
     asset_minimum = asset_grid[0]
@@ -455,10 +487,33 @@ def _make_control_optimizer(
     log_human_capital_minimum = log_human_capital_grid[0]
     log_human_capital_maximum = log_human_capital_grid[-1]
 
+    def continuation_at(
+        continuation_values: Array,
+        next_states: Array,
+        continuation_is_terminal: ArrayLike,
+    ) -> Array:
+        interpolated = _interpolate_jax(
+            continuation_values,
+            asset_grid,
+            log_human_capital_grid,
+            next_states[..., 0],
+            next_states[..., 1],
+        )
+        terminal = bequest_utility(
+            jnp.maximum(next_states[..., 0], asset_minimum),
+            params,
+        )
+        return jnp.where(
+            jnp.asarray(continuation_is_terminal),
+            terminal,
+            interpolated,
+        )
+
     def evaluate_controls(
         controls: Array,
         flat_states: Array,
         continuation_values: Array,
+        continuation_is_terminal: ArrayLike,
     ) -> tuple[Array, Array, Array, Array]:
         flat_assets = flat_states[:, 0]
         flat_log_human_capital = flat_states[:, 1]
@@ -480,12 +535,10 @@ def _make_control_optimizer(
         consumption = config.consumption_floor + consumption_fraction * consumption_span
         state_controls = jnp.column_stack((consumption, hours, training_time))
         next_states = constant_control_transition(flat_states, state_controls, params, step)
-        continuation = _interpolate_jax(
+        continuation = continuation_at(
             continuation_values,
-            asset_grid,
-            log_human_capital_grid,
-            next_states[:, 0],
-            next_states[:, 1],
+            next_states,
+            continuation_is_terminal,
         )
         objective = flow_discount * flow_utility(consumption, hours, params) + beta * continuation
         feasible = (
@@ -497,10 +550,84 @@ def _make_control_optimizer(
         )
         return objective, feasible, consumption, training_time
 
+    def evaluate_control_block(
+        block_controls: Array,
+        block_valid: Array,
+        flat_states: Array,
+        continuation_values: Array,
+        continuation_is_terminal: ArrayLike,
+    ) -> Array:
+        """Evaluate one Cartesian control block at every supplied state."""
+
+        flat_assets = flat_states[:, 0]
+        flat_log_human_capital = flat_states[:, 1]
+        hours = block_controls[:, 0]
+        investment_share = block_controls[:, 1]
+        training_time = hours * investment_share
+        consumption_capacity = maximum_feasible_consumption(
+            flat_assets[:, None],
+            flat_log_human_capital[:, None],
+            hours[None, :],
+            training_time[None, :],
+            params,
+            step,
+            asset_minimum,
+            config.path_checkpoints,
+        )
+        consumption_span = jnp.maximum(
+            consumption_capacity - config.consumption_floor,
+            0.0,
+        )
+        consumption = (
+            config.consumption_floor
+            + consumption_span[:, :, None] * consumption_fractions[None, None, :]
+        )
+        state = jnp.stack(
+            (
+                jnp.broadcast_to(flat_assets[:, None, None], consumption.shape),
+                jnp.broadcast_to(
+                    flat_log_human_capital[:, None, None],
+                    consumption.shape,
+                ),
+            ),
+            axis=-1,
+        )
+        control = jnp.stack(
+            (
+                consumption,
+                jnp.broadcast_to(hours[None, :, None], consumption.shape),
+                jnp.broadcast_to(training_time[None, :, None], consumption.shape),
+            ),
+            axis=-1,
+        )
+        next_states = constant_control_transition(state, control, params, step)
+        continuation = continuation_at(
+            continuation_values,
+            next_states,
+            continuation_is_terminal,
+        )
+        values = flow_discount * flow_utility(
+            consumption,
+            control[..., 1],
+            params,
+        ) + beta * continuation
+        feasible = (
+            block_valid[None, :, None]
+            & (consumption_capacity[:, :, None] >= config.consumption_floor)
+            & (next_states[..., 0] >= asset_minimum - 1e-10)
+            & (next_states[..., 0] <= asset_maximum + 1e-10)
+            & (next_states[..., 1] >= log_human_capital_minimum - 1e-10)
+            & (next_states[..., 1] <= log_human_capital_maximum + 1e-10)
+        )
+        return jnp.where(feasible, values, -jnp.inf).reshape(
+            (flat_states.shape[0], -1)
+        )
+
     def smooth_objective(
         controls: Array,
         flat_states: Array,
         continuation_values: Array,
+        continuation_is_terminal: ArrayLike,
     ) -> Array:
         """Penalized separable objective used only for autodiff refinement."""
 
@@ -524,12 +651,10 @@ def _make_control_optimizer(
         consumption = config.consumption_floor + consumption_fraction * consumption_span
         state_controls = jnp.column_stack((consumption, hours, training_time))
         next_states = constant_control_transition(flat_states, state_controls, params, step)
-        continuation = _interpolate_jax(
+        continuation = continuation_at(
             continuation_values,
-            asset_grid,
-            log_human_capital_grid,
-            next_states[:, 0],
-            next_states[:, 1],
+            next_states,
+            continuation_is_terminal,
         )
         objective = flow_discount * flow_utility(consumption, hours, params) + beta * continuation
         scale_assets = jnp.maximum(asset_maximum - asset_minimum, 1.0)
@@ -547,57 +672,92 @@ def _make_control_optimizer(
 
     objective_gradient = jax.grad(smooth_objective, argnums=0)
 
+    def project_controls(controls: Array) -> Array:
+        controls = controls.at[:, 0].set(jnp.clip(controls[:, 0], 0.0, 1.0 - config.leisure_floor))
+        controls = controls.at[:, 1].set(jnp.clip(controls[:, 1], 0.0, 1.0))
+        return controls.at[:, 2].set(
+            jnp.clip(
+                controls[:, 2],
+                config.consumption_fraction_minimum,
+                1.0,
+            )
+        )
+
     def refine_controls(
         initial_controls: Array,
         initial_values: Array,
         flat_states: Array,
         continuation_values: Array,
+        continuation_is_terminal: ArrayLike,
     ) -> tuple[Array, Array]:
         first_moment = jnp.zeros_like(initial_controls)
         second_moment = jnp.zeros_like(initial_controls)
 
-        def body(_, carry):
-            controls, moment_one, moment_two, best_controls, best_values = carry
-            gradient = objective_gradient(controls, flat_states, continuation_values)
+        def body(iteration_index, carry):
+            controls, current_values, moment_one, moment_two = carry
+            gradient = objective_gradient(
+                controls,
+                flat_states,
+                continuation_values,
+                continuation_is_terminal,
+            )
             moment_one = 0.9 * moment_one + 0.1 * gradient
             moment_two = 0.999 * moment_two + 0.001 * gradient**2
-            proposal = controls + config.refinement_learning_rate * moment_one / (
-                jnp.sqrt(moment_two) + 1e-8
-            )
-            proposal = proposal.at[:, 0].set(
-                jnp.clip(proposal[:, 0], 0.0, 1.0 - config.leisure_floor)
-            )
-            proposal = proposal.at[:, 1].set(jnp.clip(proposal[:, 1], 0.0, 1.0))
-            proposal = proposal.at[:, 2].set(
-                jnp.clip(
-                    proposal[:, 2],
-                    config.consumption_fraction_minimum,
-                    1.0,
+
+            iteration = jnp.asarray(iteration_index + 1, dtype=controls.dtype)
+            corrected_moment_one = moment_one / (1.0 - jnp.power(0.9, iteration))
+            corrected_moment_two = moment_two / (1.0 - jnp.power(0.999, iteration))
+            ascent_direction = corrected_moment_one / (jnp.sqrt(corrected_moment_two) + 1e-8)
+
+            def backtracking_step(backtracking_index, search_carry):
+                accepted, accepted_controls, accepted_values = search_carry
+                step_scale = jnp.power(
+                    config.refinement_backtracking_factor,
+                    jnp.asarray(backtracking_index, dtype=controls.dtype),
                 )
+                proposal = project_controls(
+                    controls + config.refinement_learning_rate * step_scale * ascent_direction
+                )
+                proposal_values, proposal_feasible, _, _ = evaluate_controls(
+                    proposal,
+                    flat_states,
+                    continuation_values,
+                    continuation_is_terminal,
+                )
+                improves = (
+                    ~accepted
+                    & proposal_feasible
+                    & jnp.isfinite(proposal_values)
+                    & (proposal_values > current_values + 1e-12)
+                )
+                return (
+                    accepted | improves,
+                    jnp.where(improves[:, None], proposal, accepted_controls),
+                    jnp.where(improves, proposal_values, accepted_values),
+                )
+
+            accepted, accepted_controls, accepted_values = jax.lax.fori_loop(
+                0,
+                config.refinement_backtracking_steps,
+                backtracking_step,
+                (
+                    jnp.zeros(current_values.shape, dtype=bool),
+                    controls,
+                    current_values,
+                ),
             )
-            proposal_values, proposal_feasible, _, _ = evaluate_controls(
-                proposal, flat_states, continuation_values
-            )
-            current_values, current_feasible, _, _ = evaluate_controls(
-                controls, flat_states, continuation_values
-            )
-            accept_current = proposal_feasible & (proposal_values >= current_values - 1e-12)
-            controls = jnp.where(accept_current[:, None], proposal, controls)
-            improved = proposal_feasible & (proposal_values > best_values)
-            best_controls = jnp.where(improved[:, None], proposal, best_controls)
-            best_values = jnp.where(improved, proposal_values, best_values)
-            controls = jnp.where(current_feasible[:, None], controls, best_controls)
-            return controls, moment_one, moment_two, best_controls, best_values
+            controls = jnp.where(accepted[:, None], accepted_controls, controls)
+            current_values = jnp.where(accepted, accepted_values, current_values)
+            return controls, current_values, moment_one, moment_two
 
         initial_carry = (
             initial_controls,
+            initial_values,
             first_moment,
             second_moment,
-            initial_controls,
-            initial_values,
         )
         final_carry = jax.lax.fori_loop(0, config.refinement_steps, body, initial_carry)
-        return final_carry[3], final_carry[4]
+        return final_carry[0], final_carry[1]
 
     def translate_neighbor_controls(
         source_controls: Array,
@@ -634,14 +794,24 @@ def _make_control_optimizer(
         carry: tuple[Array, Array, Array, Array],
         flat_states: Array,
         continuation_values: Array,
+        continuation_is_terminal: ArrayLike,
         axis: int,
+        shift: int,
     ) -> tuple[Array, Array, Array, Array]:
         controls, values, consumption, training_time = carry
         assert neighbor_shape is not None
         controls_grid = controls.reshape((*neighbor_shape, 3))
         consumption_grid = consumption.reshape(neighbor_shape)
-        source_controls = jnp.roll(controls_grid, shift=1, axis=axis).reshape((-1, 3))
-        source_consumption = jnp.roll(consumption_grid, shift=1, axis=axis).ravel()
+        source_controls = jnp.roll(
+            controls_grid,
+            shift=shift,
+            axis=axis,
+        ).reshape((-1, 3))
+        source_consumption = jnp.roll(
+            consumption_grid,
+            shift=shift,
+            axis=axis,
+        ).ravel()
         translated_controls, representable = translate_neighbor_controls(
             source_controls, source_consumption, flat_states
         )
@@ -650,15 +820,28 @@ def _make_control_optimizer(
                 translated_controls,
                 flat_states,
                 continuation_values,
+                continuation_is_terminal,
             )
         )
-        if axis == 0:
+        if axis == 0 and shift > 0:
             has_neighbor = jnp.broadcast_to(
-                jnp.arange(neighbor_shape[0])[:, None] > 0, neighbor_shape
+                jnp.arange(neighbor_shape[0])[:, None] > 0,
+                neighbor_shape,
+            ).ravel()
+        elif axis == 0:
+            has_neighbor = jnp.broadcast_to(
+                jnp.arange(neighbor_shape[0])[:, None] < neighbor_shape[0] - 1,
+                neighbor_shape,
+            ).ravel()
+        elif shift > 0:
+            has_neighbor = jnp.broadcast_to(
+                jnp.arange(neighbor_shape[1])[None, :] > 0,
+                neighbor_shape,
             ).ravel()
         else:
             has_neighbor = jnp.broadcast_to(
-                jnp.arange(neighbor_shape[1])[None, :] > 0, neighbor_shape
+                jnp.arange(neighbor_shape[1])[None, :] < neighbor_shape[1] - 1,
+                neighbor_shape,
             ).ravel()
         same_consumption = jnp.isclose(
             candidate_consumption,
@@ -680,15 +863,14 @@ def _make_control_optimizer(
             jnp.where(improved, candidate_training, training_time),
         )
 
-    def consider_incumbent_policy(
-        carry: tuple[Array, Array, Array, Array],
+    def incumbent_seed(
         incumbent_policy: Array,
         flat_states: Array,
         continuation_values: Array,
-    ) -> tuple[Array, Array, Array, Array]:
-        """Retain an interpolated policy whenever it beats the fresh search."""
+        continuation_is_terminal: ArrayLike,
+    ) -> tuple[Array, Array, Array]:
+        """Translate an absolute incumbent policy into optimizer coordinates."""
 
-        controls, values, consumption, training_time = carry
         flat_policy = incumbent_policy.reshape((-1, 3))
         incumbent_consumption = flat_policy[:, 0]
         incumbent_hours = jnp.clip(flat_policy[:, 1], 0.0, 1.0 - config.leisure_floor)
@@ -715,6 +897,7 @@ def _make_control_optimizer(
                 translated_controls,
                 flat_states,
                 continuation_values,
+                continuation_is_terminal,
             )
         )
         same_consumption = jnp.isclose(
@@ -723,118 +906,167 @@ def _make_control_optimizer(
             rtol=1e-10,
             atol=1e-10,
         )
-        improved = (
+        valid = (
             representable
             & same_consumption
             & candidate_feasible
-            & (candidate_values > values + 1e-12)
+            & jnp.isfinite(candidate_values)
         )
-        return (
-            jnp.where(improved[:, None], translated_controls, controls),
-            jnp.where(improved, candidate_values, values),
-            jnp.where(improved, candidate_consumption, consumption),
-            jnp.where(improved, candidate_training, training_time),
-        )
+        return translated_controls, candidate_values, valid
 
     def optimize_states(
         states: Array,
         continuation_values: Array,
         incumbent_policy: Array | None = None,
+        incumbent_is_valid: ArrayLike = True,
+        continuation_is_terminal: ArrayLike = False,
     ) -> tuple[Array, Array, Array, Array]:
         state_shape = states.shape[:-1]
         flat_states = states.reshape((-1, 2))
-        flat_assets = flat_states[:, 0]
-        flat_log_human_capital = flat_states[:, 1]
-        state_consumption_capacity = maximum_feasible_consumption(
-            flat_assets[:, None],
-            flat_log_human_capital[:, None],
-            candidate_hours[None, :],
-            candidate_training[None, :],
-            params,
-            step,
-            asset_minimum,
-            config.path_checkpoints,
+        state_count = flat_states.shape[0]
+        best_values = jnp.full(
+            (state_count, config.refinement_starts),
+            -jnp.inf,
         )
-        consumption_span = jnp.maximum(state_consumption_capacity - config.consumption_floor, 0.0)
-        consumption = (
-            config.consumption_floor
-            + consumption_span[:, :, None] * (consumption_fractions[None, None, :])
+        best_controls = jnp.zeros(
+            (state_count, config.refinement_starts, 3),
+            dtype=flat_states.dtype,
         )
-        hours = candidate_hours[None, :, None]
-        training_time = candidate_training[None, :, None]
-        state = jnp.stack(
-            (
-                jnp.broadcast_to(flat_assets[:, None, None], consumption.shape),
-                jnp.broadcast_to(flat_log_human_capital[:, None, None], consumption.shape),
-            ),
-            axis=-1,
-        )
-        control = jnp.stack(
-            (
-                consumption,
-                jnp.broadcast_to(hours, consumption.shape),
-                jnp.broadcast_to(training_time, consumption.shape),
-            ),
-            axis=-1,
-        )
-        next_states = constant_control_transition(state, control, params, step)
-        continuation = _interpolate_jax(
-            continuation_values,
-            asset_grid,
-            log_human_capital_grid,
-            next_states[..., 0],
-            next_states[..., 1],
-        )
-        candidate_values = (
-            flow_discount * flow_utility(consumption, hours, params) + beta * continuation
-        )
-        feasible = (
-            (state_consumption_capacity[:, :, None] >= config.consumption_floor)
-            & (next_states[..., 0] >= asset_minimum - 1e-10)
-            & (next_states[..., 0] <= asset_maximum + 1e-10)
-            & (next_states[..., 1] >= log_human_capital_minimum - 1e-10)
-            & (next_states[..., 1] <= log_human_capital_maximum + 1e-10)
-        )
-        candidate_values = jnp.where(feasible, candidate_values, -jnp.inf)
-        flat_candidate_values = candidate_values.reshape((flat_states.shape[0], -1))
-        best_index = jnp.argmax(flat_candidate_values, axis=1)
-        best_values = jnp.take_along_axis(flat_candidate_values, best_index[:, None], axis=1)[:, 0]
-        consumption_index = best_index % config.consumption_nodes
-        active_time_index = best_index // config.consumption_nodes
-        best_controls = jnp.column_stack(
-            (
-                candidate_hours[active_time_index],
-                candidate_investment[active_time_index],
-                consumption_fractions[consumption_index],
+
+        def control_batch_step(
+            batch_index: int,
+            carry: tuple[Array, Array],
+        ) -> tuple[Array, Array]:
+            incumbent_values, incumbent_controls = carry
+            start = batch_index * active_batch_size
+            block_controls = jax.lax.dynamic_slice(
+                padded_active_controls,
+                (start, 0),
+                (active_batch_size, 2),
             )
-        )
-        if config.refinement_steps:
-            best_controls, best_values = refine_controls(
-                best_controls,
-                best_values,
+            block_valid = jax.lax.dynamic_slice(
+                valid_active_controls,
+                (start,),
+                (active_batch_size,),
+            )
+            block_values = evaluate_control_block(
+                block_controls,
+                block_valid,
                 flat_states,
                 continuation_values,
+                continuation_is_terminal,
             )
+            block_hours = jnp.broadcast_to(
+                block_controls[:, 0, None],
+                (active_batch_size, config.consumption_nodes),
+            )
+            block_investment = jnp.broadcast_to(
+                block_controls[:, 1, None],
+                (active_batch_size, config.consumption_nodes),
+            )
+            block_consumption_fraction = jnp.broadcast_to(
+                consumption_fractions[None, :],
+                (active_batch_size, config.consumption_nodes),
+            )
+            block_internal_controls = jnp.stack(
+                (
+                    block_hours,
+                    block_investment,
+                    block_consumption_fraction,
+                ),
+                axis=-1,
+            ).reshape((-1, 3))
+            combined_values = jnp.concatenate(
+                (incumbent_values, block_values),
+                axis=1,
+            )
+            next_values, next_indices = jax.lax.top_k(
+                combined_values,
+                config.refinement_starts,
+            )
+            state_indices = jnp.arange(state_count)[:, None]
+            incumbent_indices = jnp.clip(
+                next_indices,
+                0,
+                config.refinement_starts - 1,
+            )
+            selected_incumbents = incumbent_controls[
+                state_indices,
+                incumbent_indices,
+            ]
+            block_indices = jnp.clip(
+                next_indices - config.refinement_starts,
+                0,
+                block_internal_controls.shape[0] - 1,
+            )
+            selected_block_controls = block_internal_controls[block_indices]
+            next_controls = jnp.where(
+                (next_indices < config.refinement_starts)[..., None],
+                selected_incumbents,
+                selected_block_controls,
+            )
+            return next_values, next_controls
+
+        best_values, best_controls = jax.lax.fori_loop(
+            0,
+            active_batch_count,
+            control_batch_step,
+            (best_values, best_controls),
+        )
+
+        if incumbent_policy is not None:
+            translated_incumbent, incumbent_values, valid_incumbent = incumbent_seed(
+                incumbent_policy,
+                flat_states,
+                continuation_values,
+                continuation_is_terminal,
+            )
+            valid_incumbent = valid_incumbent & jnp.asarray(incumbent_is_valid)
+            safe_incumbent_controls = jnp.where(
+                valid_incumbent[:, None],
+                translated_incumbent,
+                best_controls[:, 0],
+            )
+            safe_incumbent_values = jnp.where(
+                valid_incumbent,
+                incumbent_values,
+                best_values[:, 0],
+            )
+            best_controls = jnp.concatenate(
+                (best_controls, safe_incumbent_controls[:, None, :]),
+                axis=1,
+            )
+            best_values = jnp.concatenate(
+                (best_values, safe_incumbent_values[:, None]),
+                axis=1,
+            )
+
+        seed_count = best_controls.shape[1]
+        seed_states = jnp.broadcast_to(
+            flat_states[:, None, :],
+            (state_count, seed_count, 2),
+        ).reshape((-1, 2))
+        if config.refinement_steps:
+            refined_controls, refined_values = refine_controls(
+                best_controls.reshape((-1, 3)),
+                best_values.ravel(),
+                seed_states,
+                continuation_values,
+                continuation_is_terminal,
+            )
+            best_controls = refined_controls.reshape((state_count, seed_count, 3))
+            best_values = refined_values.reshape((state_count, seed_count))
+
+        best_seed_index = jnp.argmax(best_values, axis=1)
+        best_controls = best_controls[jnp.arange(state_count), best_seed_index]
+        best_values = best_values[jnp.arange(state_count), best_seed_index]
         final_values, final_feasible, final_consumption, final_training = evaluate_controls(
             best_controls,
             flat_states,
             continuation_values,
+            continuation_is_terminal,
         )
         final_values = jnp.where(final_feasible, final_values, best_values)
-        if incumbent_policy is not None:
-            best_controls, final_values, final_consumption, final_training = (
-                consider_incumbent_policy(
-                    (
-                        best_controls,
-                        final_values,
-                        final_consumption,
-                        final_training,
-                    ),
-                    incumbent_policy,
-                    flat_states,
-                    continuation_values,
-                )
-            )
         if neighbor_shape is not None and config.neighbor_policy_sweeps:
             initial_carry = (
                 best_controls,
@@ -844,8 +1076,38 @@ def _make_control_optimizer(
             )
 
             def neighbor_sweep(_, carry):
-                carry = consider_neighbor_axis(carry, flat_states, continuation_values, axis=0)
-                return consider_neighbor_axis(carry, flat_states, continuation_values, axis=1)
+                carry = consider_neighbor_axis(
+                    carry,
+                    flat_states,
+                    continuation_values,
+                    continuation_is_terminal,
+                    axis=0,
+                    shift=1,
+                )
+                carry = consider_neighbor_axis(
+                    carry,
+                    flat_states,
+                    continuation_values,
+                    continuation_is_terminal,
+                    axis=0,
+                    shift=-1,
+                )
+                carry = consider_neighbor_axis(
+                    carry,
+                    flat_states,
+                    continuation_values,
+                    continuation_is_terminal,
+                    axis=1,
+                    shift=1,
+                )
+                return consider_neighbor_axis(
+                    carry,
+                    flat_states,
+                    continuation_values,
+                    continuation_is_terminal,
+                    axis=1,
+                    shift=-1,
+                )
 
             best_controls, final_values, final_consumption, final_training = jax.lax.fori_loop(
                 0,
@@ -883,8 +1145,18 @@ def _make_bellman_step(
         neighbor_shape=(config.asset_nodes, config.human_capital_nodes),
     )
 
-    def bellman_step(continuation_values: Array) -> tuple[Array, Array, Array, Array]:
-        return optimize_states(states, continuation_values)
+    def bellman_step(
+        continuation_values: Array,
+        incumbent_policy: Array,
+        incumbent_is_valid: Array,
+    ) -> tuple[Array, Array, Array, Array]:
+        return optimize_states(
+            states,
+            continuation_values,
+            incumbent_policy,
+            incumbent_is_valid,
+            ~incumbent_is_valid,
+        )
 
     return bellman_step
 
@@ -918,15 +1190,38 @@ def solve_bellman(
     def backward_solve(
         terminal_continuation: Array,
     ) -> tuple[Array, Array, Array, Array]:
+        terminal_policy = jnp.zeros(
+            (config.asset_nodes, config.human_capital_nodes, 3),
+            dtype=terminal_continuation.dtype,
+        )
+
         def backward_step(
-            next_values: Array, _: None
-        ) -> tuple[Array, tuple[Array, Array, Array, Array]]:
-            period_result = bellman_step(next_values)
-            return period_result[0], period_result
+            carry: tuple[Array, Array, Array],
+            _: None,
+        ) -> tuple[
+            tuple[Array, Array, Array],
+            tuple[Array, Array, Array, Array],
+        ]:
+            next_values, next_policy, has_incumbent = carry
+            period_result = bellman_step(
+                next_values,
+                next_policy,
+                has_incumbent,
+            )
+            current_policy = jnp.stack(period_result[1:], axis=-1)
+            return (
+                period_result[0],
+                current_policy,
+                jnp.asarray(True),
+            ), period_result
 
         _, reverse_histories = jax.lax.scan(
             backward_step,
-            terminal_continuation,
+            (
+                terminal_continuation,
+                terminal_policy,
+                jnp.asarray(False),
+            ),
             xs=None,
             length=config.periods,
         )
@@ -1003,6 +1298,35 @@ def policy_at(
     return consumption, hours, training_time
 
 
+def value_at(
+    solution: BellmanSolution,
+    period: int,
+    assets: float | np.ndarray,
+    human_capital: float | np.ndarray,
+) -> np.ndarray:
+    """Interpolate the stored value function at arbitrary in-domain states."""
+
+    if not 0 <= period <= solution.config.periods:
+        raise ValueError("period is outside the value-function horizon")
+    human_capital_array = np.asarray(human_capital, dtype=np.float64)
+    if np.any(human_capital_array <= 0.0):
+        raise ValueError("human_capital must be positive")
+    if period == solution.config.periods:
+        return np.asarray(
+            bequest_utility(
+                jnp.asarray(assets, dtype=jnp.float64),
+                solution.params,
+            )
+        )
+    return _interpolate_numpy(
+        solution.values[period],
+        solution.asset_grid,
+        solution.log_human_capital_grid,
+        assets,
+        np.log(human_capital_array),
+    )
+
+
 @lru_cache(maxsize=16)
 def _cached_greedy_kernels(
     params: ModelParams,
@@ -1033,6 +1357,7 @@ def _cached_greedy_kernels(
         states: Array,
         continuation_values: Array,
         node_policy: Array,
+        continuation_is_terminal: Array,
     ) -> tuple[Array, Array, Array, Array]:
         incumbent_policy = jnp.stack(
             tuple(
@@ -1051,6 +1376,8 @@ def _cached_greedy_kernels(
             states,
             continuation_values,
             incumbent_policy,
+            True,
+            continuation_is_terminal,
         )
 
     def rollout(
@@ -1060,13 +1387,18 @@ def _cached_greedy_kernels(
     ) -> tuple[Array, Array, Array]:
         def forward_step(
             state: Array,
-            period_inputs: tuple[Array, Array],
+            period_inputs: tuple[Array, Array, Array],
         ) -> tuple[Array, tuple[Array, Array, Array]]:
-            continuation_values, node_policy = period_inputs
+            (
+                continuation_values,
+                node_policy,
+                continuation_is_terminal,
+            ) = period_inputs
             policy_value, consumption, hours, training_time = recover_policy(
                 state,
                 continuation_values,
                 node_policy,
+                continuation_is_terminal,
             )
             control = jnp.stack((consumption, hours, training_time), axis=-1)
             next_state = constant_control_transition(
@@ -1080,7 +1412,11 @@ def _cached_greedy_kernels(
         final_state, (states, controls, policy_values) = jax.lax.scan(
             forward_step,
             initial_state,
-            (continuation_history, node_policy_history),
+            (
+                continuation_history,
+                node_policy_history,
+                jnp.arange(config.periods) == config.periods - 1,
+            ),
         )
         full_states = jnp.concatenate((states, final_state[None, ...]), axis=0)
         return full_states, controls, policy_values
@@ -1088,13 +1424,13 @@ def _cached_greedy_kernels(
     return jax.jit(recover_policy), jax.jit(rollout), device
 
 
-def greedy_policy_at(
+def greedy_policy_value_at(
     solution: BellmanSolution,
     period: int,
     assets: float | np.ndarray,
     human_capital: float | np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Recover the Bellman-greedy policy at arbitrary in-domain states.
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Recover Bellman value and greedy controls at arbitrary in-domain states.
 
     Unlike :func:`policy_at`, this function does not interpolate stored node
     controls. It batches the supplied states and maximizes the period Bellman
@@ -1139,12 +1475,33 @@ def greedy_policy_at(
             jax.device_put(states, device),
             jax.device_put(solution.values[period + 1], device),
             jax.device_put(node_policy, device),
+            jax.device_put(
+                np.asarray(period == solution.config.periods - 1),
+                device,
+            ),
         )
     )
     policy_value, consumption, hours, training_time = (np.asarray(array) for array in recovered)
     if not np.all(np.isfinite(policy_value)):
         raise RuntimeError("no finite feasible Bellman control at an off-grid state")
     training_time = np.clip(training_time, 0.0, hours)
+    return policy_value, consumption, hours, training_time
+
+
+def greedy_policy_at(
+    solution: BellmanSolution,
+    period: int,
+    assets: float | np.ndarray,
+    human_capital: float | np.ndarray,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Recover the Bellman-greedy policy at arbitrary in-domain states."""
+
+    _, consumption, hours, training_time = greedy_policy_value_at(
+        solution,
+        period,
+        assets,
+        human_capital,
+    )
     return consumption, hours, training_time
 
 
@@ -1354,13 +1711,19 @@ def diagnose_bellman(
         training_time = jnp.asarray(solution.training_time_policy[period])
         controls = jnp.stack((consumption, hours, training_time), axis=-1)
         next_states = constant_control_transition(state_nodes, controls, params, step)
-        continuation = _interpolate_jax(
-            jnp.asarray(solution.values[period + 1]),
-            jnp.asarray(solution.asset_grid),
-            jnp.asarray(solution.log_human_capital_grid),
-            next_states[..., 0],
-            next_states[..., 1],
-        )
+        if period == config.periods - 1:
+            continuation = bequest_utility(
+                jnp.maximum(next_states[..., 0], solution.asset_grid[0]),
+                params,
+            )
+        else:
+            continuation = _interpolate_jax(
+                jnp.asarray(solution.values[period + 1]),
+                jnp.asarray(solution.asset_grid),
+                jnp.asarray(solution.log_human_capital_grid),
+                next_states[..., 0],
+                next_states[..., 1],
+            )
         policy_value = (
             flow_discount * flow_utility(consumption, hours, params) + beta * continuation
         )

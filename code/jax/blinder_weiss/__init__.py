@@ -14,9 +14,18 @@ from .bellman import (  # noqa: E402
     constant_control_transition,
     diagnose_bellman,
     greedy_policy_at,
+    greedy_policy_value_at,
     policy_at,
     simulate_policy,
     solve_bellman,
+    value_at,
+)
+from .bellman_convergence import (  # noqa: E402
+    BellmanConvergenceConfig,
+    BellmanConvergenceLevel,
+    BellmanConvergenceResult,
+    bellman_refinement_config,
+    solve_bellman_converged,
 )
 from .diagnostics import (  # noqa: E402
     PathDiagnostics,
@@ -40,6 +49,9 @@ from .solver import (  # noqa: E402
 
 __all__ = [
     "BellmanConfig",
+    "BellmanConvergenceConfig",
+    "BellmanConvergenceLevel",
+    "BellmanConvergenceResult",
     "BellmanDiagnostics",
     "BellmanSimulation",
     "BellmanSolution",
@@ -48,6 +60,7 @@ __all__ = [
     "PathDiagnostics",
     "SolverConfig",
     "benchmark_params",
+    "bellman_refinement_config",
     "bequest_utility",
     "constant_control_transition",
     "diagnose_bellman",
@@ -56,10 +69,13 @@ __all__ = [
     "earnings_tradeoff",
     "flow_utility",
     "greedy_policy_at",
+    "greedy_policy_value_at",
     "policy_at",
     "regime_labels",
     "solve_lifecycle",
     "simulate_policy",
     "solve_bellman",
+    "solve_bellman_converged",
     "solve_mesh_sequence",
+    "value_at",
 ]

@@ -149,6 +149,12 @@ interpolation. This is called a semi-Lagrangian method because the algorithm
 follows the state transition implied by a candidate control and evaluates the
 continuation value where that transition lands.
 
+In the final decision period the continuation is the known bequest function,
+so the solver evaluates (B(A')) analytically rather than interpolating the
+singular negative-power terminal array. Terminal `value_at()` queries use the
+same exact formula. Bilinear interpolation begins one step earlier, after the
+Bellman operator has regularized the terminal condition.
+
 The method has several useful properties:
 
 1. It does not numerically differentiate the value function.
@@ -278,13 +284,23 @@ Cosine-spaced nodes provide extra resolution near control boundaries. The
 global discrete comparison is important because schooling, work, and
 retirement can produce distinct local optima.
 
+The complete tensor is not materialized for every state. Active-time and
+investment pairs are scanned in fixed-size batches while consumption fractions
+remain vectorized inside each batch. Each state retains its leading candidates.
+Memory use therefore depends on `control_batch_size`, allowing much denser
+control and state grids when long runtimes are acceptable.
+
 ### Autodiff refinement
 
-The best discrete candidate initializes a projected Adam refinement. JAX
-differentiates each state's Bellman objective with respect to (h), (x), and
-the consumption fraction. A proposed refinement is retained only when it is
-feasible and raises the node value, so refinement cannot make the discrete
-solution worse.
+The leading discrete candidates and the policy at the next age initialize
+projected, bias-corrected Adam refinements. JAX differentiates each state's
+Bellman objective with respect to (h), (x), and the consumption fraction. Each
+update uses a per-state backtracking search because the bilinearly interpolated
+continuation value is continuous but kinked at state-cell boundaries. The
+first feasible step that strictly raises the value is retained; otherwise that
+start is unchanged. The best refined start is kept. Refinement therefore
+cannot make the discrete solution worse and is less likely to select the wrong
+lifecycle regime or remain pinned to the initial cosine grid.
 
 All state-node objectives are independent conditional on the next-period value
 array. JAX batches them into one compiled operation. On a CUDA installation,
@@ -299,13 +315,13 @@ the end of life. More assets cannot reduce the feasible set in the underlying
 model, so that pattern was numerical rather than economic.
 
 After independent optimization, the solver therefore takes configurable
-`neighbor_policy_sweeps`. At each richer adjacent state it evaluates the
-absolute consumption, hours, and training chosen by the poorer neighbor. The
-same absolute consumption is translated into the current state's feasible-
-capacity parameterization. The inherited policy is accepted only if it is
-representable, satisfies all state and domain constraints, and raises the
-Bellman objective. Repeated asset and human-capital sweeps propagate useful
-candidates without replacing values by an artificial monotone envelope.
+`neighbor_policy_sweeps`. In both directions of each state dimension it
+evaluates the absolute consumption, hours, and training chosen by the adjacent
+node. The same absolute consumption is translated into the current state's
+feasible-capacity parameterization. The inherited policy is accepted only if
+it is representable, satisfies all state and domain constraints, and raises
+the Bellman objective. Repeated sweeps propagate useful candidates without
+replacing values by an artificial monotone envelope.
 
 This safeguard cannot repair an inadequate upper state domain. For example,
 at `asset_maximum`, higher human capital can make otherwise desirable controls
@@ -367,6 +383,10 @@ so fresh recovery cannot lower the one-period approximate Bellman objective.
 The compiled recovery kernel is cached by model configuration and runs on the
 same JAX device as the solution.
 
+`value_at()` provides the corresponding bilinear query for a stored value
+array. `greedy_policy_value_at()` returns both the re-maximized one-period
+value and controls when an off-grid optimality audit is needed.
+
 `simulate_policy()` defaults to `policy_method="greedy"`. Its forward ages are
 compiled into a second `jax.lax.scan`, keeping states, continuation values, and
 controls on the device. `policy_method="interpolate"` retains the original
@@ -418,16 +438,54 @@ direct-collocation path. Systematic joint time, state, control, and domain
 convergence therefore remains necessary before using the value function for
 empirical welfare calculations.
 
+### Automatic research refinement
+
+`solve_bellman_converged()` turns those checks into a reproducible stopping
+rule. The supplied `BellmanConfig` defines the target state domain and the base
+resolution. At refinement level (l=0,\ldots,3), the default research schedule:
+
+- doubles the number of periods at each new level;
+- multiplies state-grid intervals by (l+1);
+- adds two active-time and investment nodes and four consumption nodes per
+  level;
+- increases local-search starts up to four, refinement steps, neighboring
+  sweeps, and path checkpoints;
+- lowers the numerical asset floor toward the economic borrowing limit and
+  raises asset-grid curvature enough to resolve the target floor; and
+- expands the upper asset domain and both log-human-capital boundaries.
+
+All comparisons use the original target domain, including base nodes and cell
+midpoints at every base age. The larger computational domain makes those
+target boundaries interior evaluation points rather than artificial dynamic
+boundaries.
+
+A level passes when normalized held-out value changes are at most
+(10^{-3}), the maximum Bellman regret of the preceding policy and the
+optimizer shortfall are at most (10^{-4}), the normalized value-monotonicity
+violation is at most (10^{-6}), node feasibility passes, and target-state
+greedy transitions remain inside the computational domain. Before evaluating
+regret, inherited controls are projected into the finer control and path-
+feasibility set; this assigns a finite economic loss when new within-period
+checkpoints require slightly lower consumption. Two consecutive levels must
+pass. If the level cap is reached first, the finest solution is returned with
+`converged=False` and an explicit stop reason.
+
+These diagnostics do not smooth the returned arrays. Persistent schooling,
+work, and retirement switches are economic features; numerical speckle is
+addressed through better search and denser approximation.
+
 ## 9. Python API
 
 ```python
 from blinder_weiss import (
     BellmanConfig,
+    BellmanConvergenceConfig,
     diagnose_bellman,
     greedy_policy_at,
     policy_at,
     simulate_policy,
-    solve_bellman,
+    solve_bellman_converged,
+    value_at,
 )
 
 config = BellmanConfig(
@@ -436,7 +494,11 @@ config = BellmanConfig(
     human_capital_nodes=25,
     compute_platform="gpu",
 )
-solution = solve_bellman(config=config)
+convergence = solve_bellman_converged(
+    config=config,
+    convergence_config=BellmanConvergenceConfig(),
+)
+solution = convergence.solution
 greedy_simulation = simulate_policy(solution, policy_method="greedy")
 interpolated_simulation = simulate_policy(
     solution, policy_method="interpolate"
@@ -457,10 +519,19 @@ greedy_consumption, greedy_hours, greedy_training = greedy_policy_at(
     human_capital=[1.0, 1.5, 2.0],
 )
 
+queried_values = value_at(
+    solution,
+    period=20,
+    assets=[2.0, 5.0, 10.0],
+    human_capital=[1.0, 1.5, 2.0],
+)
+
+print(convergence.converged, convergence.stop_reason)
 print(solution.initial_value)
 print(greedy_simulation.lifetime_utility)
 print(interpolated_simulation.lifetime_utility)
 print(solution.backend, solution.device)
+print(queried_values)
 print(diagnostics.as_dict())
 ```
 
