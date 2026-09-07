@@ -59,7 +59,12 @@ class BellmanConfig:
     sequential cubic continuation; it is smoother but does not guarantee
     coordinate monotonicity. ``value_interpolation="monotone_bicubic"`` limits
     cubic derivatives jointly to preserve coordinate monotonicity of monotone
-    value tables. ``consumption_polish`` enables exact conditional consumption
+    value tables. ``bicubic_asset_power`` optionally reconstructs in the
+    increasing coordinate ``A**power/power`` (log A for zero). Matching the
+    consumption/bequest CRRA power reproduces unconstrained all-retired value
+    functions exactly; full-model convergence still requires validation. The
+    default one retains the physical asset coordinate. ``consumption_polish``
+    enables exact conditional consumption
     search for the default bilinear representation only.
 
     ``neighbor_policy_sweeps`` bounds policy propagation across the state grid.
@@ -98,6 +103,7 @@ class BellmanConfig:
     neighbor_destination_candidates: bool = False
     consumption_polish: bool = False
     value_interpolation: Literal["bilinear", "pchip", "monotone_bicubic"] = "bilinear"
+    bicubic_asset_power: float = 1.0
     compute_platform: Literal["auto", "cpu", "gpu"] = "auto"
     device_index: int = 0
 
@@ -270,6 +276,13 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
         raise ValueError("neighbor_policy_tolerance must be finite and nonnegative")
     if config.compute_platform not in {"auto", "cpu", "gpu"}:
         raise ValueError("compute_platform must be 'auto', 'cpu', or 'gpu'")
+    if not np.isfinite(config.bicubic_asset_power):
+        raise ValueError("bicubic_asset_power must be finite")
+    if config.bicubic_asset_power != 1.0:
+        if config.value_interpolation != "monotone_bicubic":
+            raise ValueError("bicubic_asset_power requires monotone_bicubic interpolation")
+        if config.asset_minimum <= 0.0:
+            raise ValueError("bicubic_asset_power requires a positive asset domain")
     if config.value_interpolation not in {"bilinear", "pchip", "monotone_bicubic"}:
         raise ValueError("value_interpolation must be bilinear, pchip, or monotone_bicubic")
     if config.value_interpolation != "bilinear" and config.consumption_polish:
@@ -500,7 +513,9 @@ def _interpolate_value_jax(
 
     if config.value_interpolation == "monotone_bicubic":
         prepared = (
-            prepare_monotone_bicubic(values, asset_grid, log_human_capital_grid)
+            prepare_monotone_bicubic(
+                values, asset_grid, log_human_capital_grid, asset_power=config.bicubic_asset_power
+            )
             if bicubic_table is None
             else bicubic_table
         )
@@ -512,6 +527,7 @@ def _interpolate_value_jax(
             log_human_capital,
             asset_grid_curvature=config.asset_grid_curvature,
             uniform_log_grid=True,
+            asset_power=config.bicubic_asset_power,
         )
     if config.value_interpolation == "pchip":
         return tensor_pchip_interpolate(
@@ -1097,7 +1113,10 @@ def _make_control_optimizer(
             )
         if config.value_interpolation == "monotone_bicubic":
             continuation_values = prepare_monotone_bicubic(
-                continuation_values, asset_grid, log_human_capital_grid
+                continuation_values,
+                asset_grid,
+                log_human_capital_grid,
+                asset_power=config.bicubic_asset_power,
             )
         state_shape = states.shape[:-1]
         flat_states = states.reshape((-1, 2))
