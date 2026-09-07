@@ -393,6 +393,9 @@ def validate_folders(
                     "minimum": float(value_gap.min()),
                     "maximum": float(value_gap.max()),
                     "maximum_absolute": float(np.max(np.abs(value_gap))),
+                    "minimum_index": int(np.argmin(value_gap)),
+                    "maximum_index": int(np.argmax(value_gap)),
+                    "maximum_absolute_index": int(np.argmax(np.abs(value_gap))),
                 },
                 "minimum_consumption_capacity_slack": cohort.minimum_consumption_capacity_slack,
                 "boundary_visitation": _boundary_metrics(solution, states[:, :256], weights),
@@ -625,6 +628,10 @@ def audit_saved_recovery(
         },
         "folder": str(folder),
         "device": solution.device,
+        "current_source_sha256": {
+            path.name: _hash(path)
+            for path in (Path(__file__).resolve().parents[1] / "code/jax/blinder_weiss").glob("*.py")
+        },
         "saved_config": source["config"],
         "recovery_config_changes": {
             "refinement_starts": refinement_starts,
