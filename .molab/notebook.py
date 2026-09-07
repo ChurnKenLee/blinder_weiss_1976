@@ -72,33 +72,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    import os as _key_os
-    import tempfile as _key_tempfile
-
-    def _save_ipums_key(_key_value):
-        if not _key_value or not _key_value.strip():
-            return
-        with _key_tempfile.NamedTemporaryFile(
-            mode="w", dir="/tmp", prefix=".ipums-key-", delete=False
-        ) as _key_file:
-            _key_os.fchmod(_key_file.fileno(), 0o600)
-            _key_file.write(_key_value.strip())
-            _key_path = _key_file.name
-        _key_os.replace(_key_path, "/tmp/ipums_api_key")
-        mo.status.toast("IPUMS key received privately. The data agent can start downloading.")
-
-    ipums_private_key_form = mo.ui.text(
-        kind="password", label="IPUMS API key"
-    ).form(
-        clear_on_submit=True,
-        on_change=_save_ipums_key,
-        submit_button_label="Enable IPUMS downloads",
-    )
-    mo.vstack([
-        mo.md("### IPUMS access\nEnter the key here to enable ACS/ATUS downloads. "
-              "It will not be included in notebook source or GitHub backups."),
-        ipums_private_key_form,
-    ])
+    mo.md("""
+    **IPUMS key received privately.** The data agent is checking account access and preparing downloads.
+    """)
     return
 
 
