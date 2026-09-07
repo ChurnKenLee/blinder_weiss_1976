@@ -84,6 +84,8 @@ class BellmanConfig:
     refinement_starts: int = 1
     control_batch_size: int = 256
     neighbor_policy_sweeps: int = 2
+    # Optional relative objective tolerance for early stopping within this cap.
+    neighbor_policy_tolerance: float | None = None
     neighbor_destination_candidates: bool = False
     consumption_polish: bool = False
     value_interpolation: Literal["bilinear", "pchip", "monotone_bicubic"] = "bilinear"
@@ -253,6 +255,10 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
         raise ValueError("control_batch_size must be positive")
     if config.neighbor_policy_sweeps < 0:
         raise ValueError("neighbor_policy_sweeps cannot be negative")
+    if config.neighbor_policy_tolerance is not None and (
+        not np.isfinite(config.neighbor_policy_tolerance) or config.neighbor_policy_tolerance < 0.0
+    ):
+        raise ValueError("neighbor_policy_tolerance must be finite and nonnegative")
     if config.compute_platform not in {"auto", "cpu", "gpu"}:
         raise ValueError("compute_platform must be 'auto', 'cpu', or 'gpu'")
     if config.value_interpolation not in {"bilinear", "pchip", "monotone_bicubic"}:
@@ -1272,12 +1278,33 @@ def _make_control_optimizer(
                     shift=-1,
                 )
 
-            best_controls, final_values, final_consumption, final_training = jax.lax.fori_loop(
-                0,
-                config.neighbor_policy_sweeps,
-                neighbor_sweep,
-                initial_carry,
-            )
+            if config.neighbor_policy_tolerance is None:
+                final_carry = jax.lax.fori_loop(
+                    0, config.neighbor_policy_sweeps, neighbor_sweep, initial_carry
+                )
+            else:
+                # A fixed small number of Jacobi sweeps can merely move a
+                # spurious value decline to the next node. Let useful policies
+                # propagate, with a hard work cap and no host synchronization.
+                def sweep_pending(loop_carry):
+                    iteration, improved, _ = loop_carry
+                    return (iteration < config.neighbor_policy_sweeps) & improved
+
+                def adaptive_sweep(loop_carry):
+                    iteration, _, carry = loop_carry
+                    updated = neighbor_sweep(iteration, carry)
+                    old_values, new_values = carry[1], updated[1]
+                    scale = jnp.maximum(1.0, jnp.abs(old_values))
+                    significant = jnp.isfinite(new_values) & (
+                        ~jnp.isfinite(old_values)
+                        | (new_values - old_values > config.neighbor_policy_tolerance * scale)
+                    )
+                    return iteration + 1, jnp.any(significant), updated
+
+                _, _, final_carry = jax.lax.while_loop(
+                    sweep_pending, adaptive_sweep, (0, True, initial_carry)
+                )
+            best_controls, final_values, final_consumption, final_training = final_carry
         if config.consumption_polish:
             final_consumption, final_values = optimize_conditional_consumption(
                 flat_states,
