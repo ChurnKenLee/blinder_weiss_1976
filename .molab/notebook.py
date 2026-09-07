@@ -73,7 +73,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md("""
-    **IPUMS key received privately.** The data agent is checking account access and preparing downloads.
+    **2024 IPUMS downloads validated.** ACS: 3,422,888 person records. ATUS: 7,669 respondent diaries, with all diaries totaling 1,440 minutes. Raw data, dictionaries, checksums, and provenance are saved in the project; the data agent is verifying the remote backup.
     """)
     return
 
@@ -91,7 +91,7 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     policy_age = mo.ui.slider(0, 69, value=25, label="Model age")
-    policy_human_capital = mo.ui.slider(0.25, 3.0, step=0.05, value=1.0, label="/sHuman capital")
+    policy_human_capital = mo.ui.slider(0.25, 3.0, step=0.05, value=1.0, label="Human capital")
     mo.hstack([policy_age, policy_human_capital])
     return policy_age, policy_human_capital
 
@@ -108,7 +108,8 @@ def _(benchmark_directory, github_sync_refresh, json, mo):
                                  "seconds": round(_row["wall_seconds"], 3)})
     for _label, _folder in [("Optimized, default grid", "optimized_default"),
                             ("Optimized, finer grid", "optimized_fine"),
-                            ("Experimental PCHIP", "pchip_default")]:
+                            ("Cubic + adaptive search, default grid", "bicubic_adaptive_default"),
+                            ("Cubic + adaptive search, finer grid", "bicubic_adaptive_fine")]:
         _file = benchmark_directory / _folder / "report.json"
         if _file.exists():
             _report = json.loads(_file.read_text())
@@ -136,7 +137,7 @@ def _(
     for _label, _relative, _style in [
         ("Original", "original_default.npz", "--"),
         ("Optimized + consumption polish", "optimized_default/policies.npz", "-"),
-        ("Experimental PCHIP", "pchip_default/policies.npz", ":"),
+        ("Cubic + adaptive search, fine", "bicubic_adaptive_fine/policies.npz", ":"),
     ]:
         _file = benchmark_directory / _relative
         if not _file.exists():
