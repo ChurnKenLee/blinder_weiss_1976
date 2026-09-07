@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from collections import Counter
+from decimal import Decimal, InvalidOperation
 import gzip
 import hashlib
 import json
@@ -53,8 +54,16 @@ def validate(directory):
                 raise ValueError(f'Unexpected fixed-width record length at line {record_count}')
             def number(name):
                 col = columns[name]
-                return int(row[col['start']:col['end']])
-            year, age, weight = number('YEAR'), number('AGE'), number(weight_name)
+                try:
+                    return int(row[col['start']:col['end']])
+                except ValueError:
+                    raise ValueError(f'Invalid integer in {name} at record {record_count}') from None
+            weight_column = columns[weight_name]
+            try:
+                weight = Decimal(row[weight_column['start']:weight_column['end']].decode().strip())
+            except InvalidOperation:
+                raise ValueError(f'Invalid weight at record {record_count}') from None
+            year, age = number('YEAR'), number('AGE')
             if weight < 0:
                 raise ValueError('Negative survey weight')
             years[year] += 1
@@ -92,8 +101,8 @@ def validate(directory):
         'age_range': [min(ages), max(ages)],
         'weight_variable': weight_name,
         'weight_decimals': columns[weight_name]['decimals'],
-        'raw_integer_weight_range': [minimum_weight, maximum_weight],
-        'survey_weight_sum': weight_sum / 10**columns[weight_name]['decimals'],
+        'unscaled_weight_range': [str(minimum_weight), str(maximum_weight)],
+        'survey_weight_sum': float(weight_sum / 10**columns[weight_name]['decimals']),
         'survey_weight_sum_unit': 'persons' if collection == 'usa' else 'respondent-days; apply weights once per respondent',
         'empirical_calibration_moments_constructed': False,
     }
