@@ -115,7 +115,7 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     policy_age = mo.ui.slider(0, 69, value=25, label="Model age")
-    policy_human_capital = mo.ui.slider(0.25, 3.0, step=0.05, value=1.0, label="Human capital")
+    policy_human_capital = mo.ui.slider(0.25, 3.0, step=0.05, value=1.0, label="/sHuman capital")
     mo.hstack([policy_age, policy_human_capital])
     return policy_age, policy_human_capital
 
