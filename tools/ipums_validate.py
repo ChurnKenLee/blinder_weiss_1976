@@ -11,10 +11,12 @@ from collections import Counter
 import gzip
 import hashlib
 import json
+import sys
 from pathlib import Path
 import xml.etree.ElementTree as ET
 
-from ipums_download import atomic_json, now
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ipums_download import atomic_json, now  # noqa: E402
 
 
 def validate(directory):
