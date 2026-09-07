@@ -42,8 +42,26 @@ from jax.typing import ArrayLike
 from .bellman_interpolation import _hermite, _left_index, pchip_slopes
 
 
+def _constraint_differences(values: Array) -> Array:
+    """Classify roundoff-sized edge changes as flat only inside the limiter.
+
+    An exact sign test can interpret opposite one-ULP perturbations of a flat
+    edge as a real change of monotonic sense and disable a cell's mixed
+    derivative constraints. Large initial twists may then survive despite
+    machine-scale differences in the input values. Use an endpoint-local
+    floating-point scale consistently for every derivative constraint. There
+    is no absolute tolerance floor: small-magnitude value tables retain their
+    relative shape. The actual nodal values are never modified.
+    """
+
+    differences = jnp.diff(values, axis=0)
+    scale = jnp.maximum(jnp.abs(values[:-1]), jnp.abs(values[1:]))
+    tolerance = 32.0 * jnp.finfo(values.dtype).eps * scale
+    return jnp.where(jnp.abs(differences) <= tolerance, 0.0, differences)
+
+
 def _limit_edge_slopes(grid: Array, values: Array, slopes: Array) -> Array:
-    secants = jnp.diff(values, axis=0) / jnp.diff(grid)[:, None]
+    secants = _constraint_differences(values) / jnp.diff(grid)[:, None]
     edge_lower = jnp.minimum(0.0, 3.0 * secants)
     edge_upper = jnp.maximum(0.0, 3.0 * secants)
     lower = jnp.maximum(
@@ -62,7 +80,7 @@ def _cross_difference_bounds(
 ) -> tuple[Array, Array]:
     """Bounds on neighboring derivatives in the orthogonal direction."""
 
-    differences = jnp.diff(values, axis=0)
+    differences = _constraint_differences(values)
     farther_slope = jnp.where(
         jnp.abs(axis_slopes[:-1]) > jnp.abs(axis_slopes[1:]),
         axis_slopes[:-1],
@@ -158,8 +176,9 @@ def _cell_twist_bounds(
 
     width = jnp.diff(axis_grid)[:, None]
     other_width = jnp.diff(other_grid)[None, :]
-    low_difference = values[1:, :-1] - values[:-1, :-1]
-    high_difference = values[1:, 1:] - values[:-1, 1:]
+    differences = _constraint_differences(values)
+    low_difference = differences[:, :-1]
+    high_difference = differences[:, 1:]
     low_cross = (other_slopes[1:, :-1] - other_slopes[:-1, :-1]) / width
     high_cross = (other_slopes[1:, 1:] - other_slopes[:-1, 1:]) / width
     low_term = low_cross + 3.0 * low_difference / (width * other_width)
@@ -207,8 +226,10 @@ def prepare_monotone_bicubic(
 
     Grids must be strictly increasing with at least two nodes per axis. Input
     values are reproduced exactly, including any existing nodal violation of
-    monotonicity. The limiter guarantees monotonicity within cells whose two
-    parallel edges have the same monotonic sense. Derivative-bound failures
+    monotonicity. The limiter guarantees monotonicity, up to local floating-
+    point noise in the retained nodal values, within cells whose two parallel
+    edges have the same monotonic sense. Machine-scale edge differences are
+    treated as flat for constraints only. Derivative-bound failures
     larger than roundoff yield NaNs rather than an uncertified interpolant;
     ``bicubic_constraint_violations`` exposes every class of inequality.
     """
