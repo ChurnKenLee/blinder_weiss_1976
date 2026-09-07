@@ -66,6 +66,7 @@ class BellmanConfig:
     hours_nodes: int = 11
     investment_nodes: int = 11
     consumption_nodes: int = 15
+    # Lower endpoint of the global seed grid only; refinement can reach c_floor.
     consumption_fraction_minimum: float = 0.02
     consumption_floor: float = 1e-8
     leisure_floor: float = 1e-5
