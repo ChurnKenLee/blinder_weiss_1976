@@ -1,3 +1,9 @@
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "diffrax>=0.7.2",
+# ]
+# ///
 import marimo
 
 __generated_with = "0.24.0"
