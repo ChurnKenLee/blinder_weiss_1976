@@ -24,6 +24,7 @@ from blinder_weiss import (
     ModelParams,
     simulate_cohort,
 )
+from scipy.integrate import solve_ivp
 
 _REFERENCE_NAMES = ("direct_reference", "direct_type_low", "direct_type_high")
 _REFERENCE_STATES = ((5.0, 1.0), (2.0, 0.8), (8.0, 1.2))
@@ -239,6 +240,32 @@ def _reference_comparison(
         atol=1e-10,
     ):
         return {"status": "initial_states_differ"}
+    # Direct controls are linear between collocation nodes. Integrate them
+    # independently instead of linearly interpolating curved state paths.
+    reference_params = ModelParams(**metadata["params"])
+
+    def direct_dynamics(age, state):
+        consumption, hours, training = [
+            np.interp(age, reference["time"], reference[key]) for key in ("c", "h", "q")
+        ]
+        earnings = _earnings_share(np.asarray(hours), np.asarray(training)) * np.exp(state[1])
+        return [
+            reference_params.interest_rate * state[0] + earnings - consumption,
+            reference_params.human_capital_productivity * training
+            - reference_params.human_capital_depreciation,
+        ]
+
+    integrated = solve_ivp(
+        direct_dynamics,
+        (float(reference["time"][0]), float(reference["time"][-1])),
+        [reference["A"][0], np.log(reference["K"][0])],
+        method="DOP853",
+        rtol=1e-10,
+        atol=1e-12,
+        t_eval=time,
+    )
+    if not integrated.success or not np.all(np.isfinite(integrated.y)):
+        return {"status": "reference_integration_failed", "message": integrated.message}
     midpoints = (time[:-1] + time[1:]) / 2.0
     errors = {}
     for field, actual, sample_times in (
@@ -248,7 +275,13 @@ def _reference_comparison(
         ("h", controls[:, 1], midpoints),
         ("q", controls[:, 2], midpoints),
     ):
-        expected = np.interp(sample_times, reference["time"], reference[field])
+        expected = (
+            integrated.y[0]
+            if field == "A"
+            else np.exp(integrated.y[1])
+            if field == "K"
+            else np.interp(sample_times, reference["time"], reference[field])
+        )
         errors[field] = error_metrics(actual, expected)
     reference_utility = metadata["lifetime_utility"]
     return {
@@ -261,7 +294,7 @@ def _reference_comparison(
         "realized_utility": realized_utility,
         "reference_utility": reference_utility,
         "reference_minus_realized_utility": reference_utility - realized_utility,
-        "state_alignment": "linear interpolation of direct collocation nodes",
+        "state_alignment": "independent DOP853 integration of linear direct controls, rtol1e-10 atol1e-12",
         "control_alignment": "linear direct controls evaluated at Bellman interval midpoints",
     }
 
@@ -286,7 +319,10 @@ def validate_folders(
         "participation_definition": f"hours > {participation_threshold} in model time units",
         "reference_probes": dict(zip(_REFERENCE_NAMES, _REFERENCE_STATES, strict=True)),
         "existing_convergence_settings": asdict(BellmanConvergenceConfig()),
-        "scope": "fixed benchmark economics and initial-state distribution; model moments, not survey units",
+        "scope": (
+            "fixed benchmark economics and initial-state distribution; "
+            "model moments, not survey units"
+        ),
         "recovery": "current solver implementation applied to each saved value/policy grid",
         "runs": [],
         "successive_grid_comparisons": [],
@@ -356,7 +392,7 @@ def validate_folders(
                     "maximum_absolute": float(np.max(np.abs(value_gap))),
                 },
                 "minimum_consumption_capacity_slack": cohort.minimum_consumption_capacity_slack,
-                "boundary_visitation": _boundary_metrics(solution, cohort.states[:, :256], weights),
+                "boundary_visitation": _boundary_metrics(solution, states[:, :256], weights),
                 "moments": {key: value.tolist() for key, value in moments.items()},
             }
             row["direct_references"] = {
