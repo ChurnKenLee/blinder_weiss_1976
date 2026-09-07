@@ -28,6 +28,9 @@ from .transcription import (
 )
 
 
+_KKT_STATIONARITY_TOLERANCE = 1e-4
+
+
 @dataclass(frozen=True)
 class PathDiagnostics:
     """A compact set of acceptance checks for an optimized lifecycle."""
@@ -205,7 +208,14 @@ def _continuous_foc_diagnostics(
 
 
 def _projected_kkt_residual(result: CollocationResult) -> float:
-    """Estimate first-order NLP stationarity, including active box bounds."""
+    """Estimate stationarity using valid reported or reconstructed duals.
+
+    SLSQP can return multipliers from a preceding QP even when its final
+    primal iterate is unchanged by a further warm solve. If those multipliers
+    fail the stationarity check, reconstruct duals at the returned iterate.
+    The residual measures existence of admissible duals; primal feasibility
+    and independent integration are checked separately by ``diagnose_path``.
+    """
 
     params = result.params
     config = result.config
@@ -264,8 +274,14 @@ def _projected_kkt_residual(result: CollocationResult) -> float:
     bound_tolerance = 1e-6
     at_lower = result.decision <= lower + bound_tolerance
     at_upper = result.decision >= upper - bound_tolerance
-    free = ~(at_lower | at_upper)
 
+    def projected_norm(lagrangian_gradient: np.ndarray) -> float:
+        projected = np.array(lagrangian_gradient, copy=True)
+        projected[at_lower] = np.minimum(lagrangian_gradient[at_lower], 0.0)
+        projected[at_upper] = np.maximum(projected[at_upper], 0.0)
+        return float(np.max(np.abs(projected)))
+
+    reported_residual = np.inf
     optimizer_multipliers = getattr(result.optimizer_result, "multipliers", None)
     expected_multiplier_count = (
         equality_jacobian.shape[0] + inequality_jacobian.shape[0] + path_jacobian.shape[0]
@@ -281,42 +297,55 @@ def _projected_kkt_residual(result: CollocationResult) -> float:
         multipliers = np.asarray(optimizer_multipliers)
         equality_end = equality_jacobian.shape[0]
         training_end = equality_end + inequality_jacobian.shape[0]
-        lagrangian_gradient = (
-            gradient
-            - equality_jacobian.T @ multipliers[:equality_end]
-            - inequality_jacobian.T @ multipliers[equality_end:training_end]
-            - path_jacobian.T @ multipliers[training_end:]
+        inequality_multipliers = multipliers[equality_end:]
+        active = np.concatenate((active_inequalities, active_path_constraints))
+        reported_duals_valid = (
+            np.all(np.isfinite(multipliers))
+            and np.all(inequality_multipliers >= 0.0)
+            and np.all(inequality_multipliers[~active] == 0.0)
         )
-    elif np.any(free):
-        multiplier_matrix = jacobian[:, free].T
-        if active_inequality_count:
-            multiplier_lower = np.full(jacobian.shape[0], -np.inf)
-            multiplier_upper = np.full(jacobian.shape[0], np.inf)
-            # Inequalities are represented as g(z) >= 0. With the +J'lambda
-            # convention used here, their KKT multipliers must be nonpositive.
-            multiplier_upper[equality_jacobian.shape[0] :] = 0.0
-            multiplier_result = lsq_linear(
-                multiplier_matrix,
-                -gradient[free],
-                bounds=(multiplier_lower, multiplier_upper),
-                lsq_solver="exact",
-                tol=1e-12,
+        if reported_duals_valid:
+            lagrangian_gradient = (
+                gradient
+                - equality_jacobian.T @ multipliers[:equality_end]
+                - inequality_jacobian.T @ multipliers[equality_end:training_end]
+                - path_jacobian.T @ multipliers[training_end:]
             )
-            multipliers = multiplier_result.x
-        else:
-            multipliers, *_ = np.linalg.lstsq(
-                multiplier_matrix,
-                -gradient[free],
-                rcond=None,
-            )
-        lagrangian_gradient = gradient + jacobian.T @ multipliers
+            reported_residual = projected_norm(lagrangian_gradient)
+            if reported_residual <= _KKT_STATIONARITY_TOLERANCE:
+                return reported_residual
+
+    # Include bound duals in the fit so stationarity at active bounds informs
+    # the equality/inequality multipliers as well as the free-variable rows.
+    # Under grad(f) + J'lambda, all g(z) >= 0 inequality multipliers are <= 0.
+    # Lower bounds have Jacobian +I and upper bounds -I. Inactive constraints
+    # receive no column, enforcing complementarity at the existing tolerance.
+    bound_rows = np.eye(gradient.size)
+    bound_jacobian = np.vstack((bound_rows[at_lower], -bound_rows[at_upper]))
+    full_jacobian = np.vstack((jacobian, bound_jacobian))
+    constrained_dual_count = active_inequality_count + bound_jacobian.shape[0]
+    if constrained_dual_count:
+        multiplier_lower = np.full(full_jacobian.shape[0], -np.inf)
+        multiplier_upper = np.full(full_jacobian.shape[0], np.inf)
+        multiplier_upper[equality_jacobian.shape[0] :] = 0.0
+        multiplier_result = lsq_linear(
+            full_jacobian.T,
+            -gradient,
+            bounds=(multiplier_lower, multiplier_upper),
+            lsq_solver="exact",
+            tol=1e-12,
+        )
+        reconstructed_multipliers = multiplier_result.x
     else:
-        multipliers = np.zeros(jacobian.shape[0])
-        lagrangian_gradient = gradient + jacobian.T @ multipliers
-    projected_violation = np.array(lagrangian_gradient, copy=True)
-    projected_violation[at_lower] = np.minimum(lagrangian_gradient[at_lower], 0.0)
-    projected_violation[at_upper] = np.maximum(lagrangian_gradient[at_upper], 0.0)
-    return float(np.max(np.abs(projected_violation)))
+        reconstructed_multipliers, *_ = np.linalg.lstsq(
+            full_jacobian.T, -gradient, rcond=None
+        )
+    # Projecting the remaining bound gradient is equivalent to choosing its
+    # optimal admissible box multipliers. Both candidates are valid dual
+    # witnesses; prefer whichever has smaller stationarity error.
+    reconstructed_gradient = gradient + jacobian.T @ reconstructed_multipliers[: jacobian.shape[0]]
+    reconstructed_residual = projected_norm(reconstructed_gradient)
+    return float(min(reported_residual, reconstructed_residual))
 
 
 def independently_integrate_controls(
@@ -427,7 +456,11 @@ def diagnose_path(
         and human_capital_relative_error <= 1e-4
         and minimum_integrated_assets >= result.params.asset_floor - 1e-4 * asset_scale
     )
-    accepted = result.success and projected_kkt <= 1e-4 and integration_accepted
+    accepted = (
+        result.success
+        and projected_kkt <= _KKT_STATIONARITY_TOLERANCE
+        and integration_accepted
+    )
     return PathDiagnostics(
         optimizer_success=result.optimizer_success,
         accepted_success=accepted,
