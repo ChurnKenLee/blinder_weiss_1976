@@ -630,7 +630,9 @@ def audit_saved_recovery(
         "device": solution.device,
         "current_source_sha256": {
             path.name: _hash(path)
-            for path in (Path(__file__).resolve().parents[1] / "code/jax/blinder_weiss").glob("*.py")
+            for path in (Path(__file__).resolve().parents[1] / "code/jax/blinder_weiss").glob(
+                "*.py"
+            )
         },
         "saved_config": source["config"],
         "recovery_config_changes": {
