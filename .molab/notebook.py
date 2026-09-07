@@ -164,5 +164,45 @@ def _(
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    reference_household = mo.ui.dropdown(
+        options=["A = 5, K = 1", "A = 2, K = 0.8", "A = 8, K = 1.2"],
+        value="A = 8, K = 1.2", label="Initial assets and human capital",
+    )
+    reference_household
+    return (reference_household,)
+
+
+@app.cell(hide_code=True)
+def _(benchmark_directory, mo, np, plt, reference_household):
+    _probe = ["A = 5, K = 1", "A = 2, K = 0.8", "A = 8, K = 1.2"].index(reference_household.value)
+    _reference_name = ["direct_reference", "direct_type_low", "direct_type_high"][_probe]
+    _comparison_file = benchmark_directory / "calibration_domain_validation.npz"
+    _comparison_fig, _comparison_axes = plt.subplots(1, 3, figsize=(12, 3.8), constrained_layout=True)
+    if _comparison_file.exists():
+        with np.load(_comparison_file) as _paths:
+            for _run, _label, _style in [(0, "Previous domain", "--"), (1, "Wider domain", "-")]:
+                _time = _paths[f"run_{_run}_time"]
+                _states = _paths[f"run_{_run}_states"][:, 256 + _probe]
+                _controls = _paths[f"run_{_run}_controls"][:, 256 + _probe]
+                _comparison_axes[0].plot(_time, np.exp(_states[:, 1]), _style, label=_label)
+                _comparison_axes[1].plot(_time[:-1], _controls[:, 1], _style, label=_label)
+                _comparison_axes[2].plot(_time[:-1], _controls[:, 0], _style, label=_label)
+        with np.load(benchmark_directory / f"{_reference_name}.npz") as _direct:
+            for _axis, _field in zip(_comparison_axes, ["K", "h", "c"], strict=True):
+                _axis.plot(_direct["time"], _direct[_field], color="black", ls=":", label="Direct reference")
+    for _axis, _title in zip(_comparison_axes, ["Human capital", "Active time", "Consumption"], strict=True):
+        _axis.set(title=_title, xlabel="Model age")
+        _axis.grid(alpha=0.2)
+    _comparison_axes[0].legend(fontsize=8)
+    plt.close(_comparison_fig)
+    mo.vstack([
+        mo.md("**Lifecycle check against independent direct solutions.** The earlier human-capital floor forced some retired households to train. The wider grid covers their falling human capital. These comparisons are part of ongoing convergence checks."),
+        _comparison_fig,
+    ])
+    return
+
+
 if __name__ == "__main__":
     app.run()
