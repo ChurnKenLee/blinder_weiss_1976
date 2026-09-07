@@ -73,7 +73,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md("""
-    **2024 IPUMS downloads validated.** ACS: 3,422,888 person records. ATUS: 7,669 respondent diaries, with all diaries totaling 1,440 minutes. Raw data, dictionaries, checksums, and provenance are saved in the project; the data agent is verifying the remote backup.
+    **2024 IPUMS downloads validated and backed up to GitHub.** ACS: 3,422,888 person records. ATUS: 7,669 respondent diaries; every diary totals 1,440 minutes. Raw data, dictionaries, checksums, and provenance are in `blinder_weiss_1976/data/ipums/`. The solver goal remains active.
     """)
     return
 
@@ -91,7 +91,7 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     policy_age = mo.ui.slider(0, 69, value=25, label="Model age")
-    policy_human_capital = mo.ui.slider(0.25, 3.0, step=0.05, value=1.0, label="Human capital")
+    policy_human_capital = mo.ui.slider(0.05, 5.0, step=0.05, value=1.0, label="Human capital")
     mo.hstack([policy_age, policy_human_capital])
     return policy_age, policy_human_capital
 
@@ -109,7 +109,8 @@ def _(benchmark_directory, github_sync_refresh, json, mo):
     for _label, _folder in [("Optimized, default grid", "optimized_default"),
                             ("Optimized, finer grid", "optimized_fine"),
                             ("Cubic + adaptive search, default grid", "bicubic_adaptive_default"),
-                            ("Cubic + adaptive search, finer grid", "bicubic_adaptive_fine")]:
+                            ("Cubic + exact propagation, finer grid", "bicubic_exact_fine"),
+                            ("Cubic, wider human-capital domain", "bicubic_padded_fine")]:
         _file = benchmark_directory / _folder / "report.json"
         if _file.exists():
             _report = json.loads(_file.read_text())
@@ -137,7 +138,7 @@ def _(
     for _label, _relative, _style in [
         ("Original", "original_default.npz", "--"),
         ("Optimized + consumption polish", "optimized_default/policies.npz", "-"),
-        ("Cubic + adaptive search, fine", "bicubic_adaptive_fine/policies.npz", ":"),
+        ("Cubic, wider domain", "bicubic_padded_fine/policies.npz", ":"),
     ]:
         _file = benchmark_directory / _relative
         if not _file.exists():
@@ -146,6 +147,8 @@ def _(
             _age_index = min(int(policy_age.value * _data["c"].shape[0] / 70),
                              _data["c"].shape[0] - 1)
             _log_k = np.log(policy_human_capital.value)
+            if not _data["y"][0] <= _log_k <= _data["y"][-1]:
+                continue
             for _ax, _key, _title in zip(_axes, ["c", "h", "q"],
                                         ["Consumption", "Active time", "Training time"], strict=True):
                 _slice = np.array([np.interp(_log_k, _data["y"], _line)
@@ -154,8 +157,9 @@ def _(
                 _ax.set(xlabel="Assets", title=_title, xlim=(0, 20))
                 _ax.grid(alpha=0.2)
     _axes[0].legend(fontsize=7)
+    plt.close(_fig)
     mo.vstack([mo.md("**Policies at the selected age and human capital.** "
-                     "These curves connect stored policy nodes; they are not post-smoothed."),
+                     "These curves connect stored policy nodes. A solver is omitted when the selected state is outside its grid."),
                _fig])
     return
 
