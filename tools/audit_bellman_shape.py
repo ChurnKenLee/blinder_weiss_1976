@@ -28,8 +28,10 @@ def audit(solution, subdivisions: int) -> dict:
     dense_grids = [
         np.concatenate(
             (
-                (grid[:-1, None] + np.diff(grid)[:, None] * np.arange(subdivisions)
-                 / subdivisions).ravel(),
+                (
+                    grid[:-1, None]
+                    + np.diff(grid)[:, None] * np.arange(subdivisions) / subdivisions
+                ).ravel(),
                 grid[-1:],
             )
         )
@@ -46,7 +48,11 @@ def audit(solution, subdivisions: int) -> dict:
 
         def value(state):
             return monotone_bicubic_interpolate(
-                packed, assets, log_k, state[0], state[1],
+                packed,
+                assets,
+                log_k,
+                state[0],
+                state[1],
                 asset_grid_curvature=solution.config.asset_grid_curvature,
                 uniform_log_grid=True,
             )
@@ -63,15 +69,17 @@ def audit(solution, subdivisions: int) -> dict:
     ages = []
     for time, values in zip(solution.time, solution.values, strict=True):
         minimum, negative_count, finite, constraints = age_metrics(jnp.asarray(values))
-        ages.append({
-            "model_age": float(time),
-            "minimum_dVdA": float(minimum[0]),
-            "minimum_dVdlogK": float(minimum[1]),
-            "negative_asset_derivative_count": int(negative_count[0]),
-            "negative_logK_derivative_count": int(negative_count[1]),
-            "all_derivatives_finite": bool(finite),
-            "constraint_residuals": {key: float(value) for key, value in constraints.items()},
-        })
+        ages.append(
+            {
+                "model_age": float(time),
+                "minimum_dVdA": float(minimum[0]),
+                "minimum_dVdlogK": float(minimum[1]),
+                "negative_asset_derivative_count": int(negative_count[0]),
+                "negative_logK_derivative_count": int(negative_count[1]),
+                "all_derivatives_finite": bool(finite),
+                "constraint_residuals": {key: float(value) for key, value in constraints.items()},
+            }
+        )
     return {
         "subdivisions_per_cell_axis": subdivisions,
         "queries_per_age": int(queries.shape[0]),
@@ -79,8 +87,12 @@ def audit(solution, subdivisions: int) -> dict:
         "domain": [[float(grid[0]), float(grid[-1])] for grid in grids],
         "minimum_dVdA": min(row["minimum_dVdA"] for row in ages),
         "minimum_dVdlogK": min(row["minimum_dVdlogK"] for row in ages),
-        "negative_asset_derivative_count": sum(row["negative_asset_derivative_count"] for row in ages),
-        "negative_logK_derivative_count": sum(row["negative_logK_derivative_count"] for row in ages),
+        "negative_asset_derivative_count": sum(
+            row["negative_asset_derivative_count"] for row in ages
+        ),
+        "negative_logK_derivative_count": sum(
+            row["negative_logK_derivative_count"] for row in ages
+        ),
         "all_derivatives_finite": all(row["all_derivatives_finite"] for row in ages),
         "ages": ages,
     }
@@ -99,8 +111,11 @@ def main() -> None:
     for folder in args.folders:
         solution, _ = load_solution(args.root / folder)
         result[folder] = audit(solution, args.subdivisions)
-        print(folder, json.dumps({key: value for key, value in result[folder].items()
-                                  if key != "ages"}), flush=True)
+        print(
+            folder,
+            json.dumps({key: value for key, value in result[folder].items() if key != "ages"}),
+            flush=True,
+        )
     args.output.parent.mkdir(parents=True, exist_ok=True)
     temporary = args.output.with_suffix(args.output.suffix + ".tmp")
     temporary.write_text(json.dumps(result, indent=2) + "\n")
