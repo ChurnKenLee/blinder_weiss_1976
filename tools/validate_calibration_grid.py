@@ -513,31 +513,42 @@ def recovery_gap_decomposition(
 
     from blinder_weiss.bellman import _interpolate_value_jax
 
-    if states.shape != (len(time), *controls.shape[1:-1], 2) or policy_values.shape != controls.shape[:-1]:
+    if (
+        states.shape != (len(time), *controls.shape[1:-1], 2)
+        or policy_values.shape != controls.shape[:-1]
+    ):
         raise ValueError("rollout state, control, and policy-value shapes must agree")
     if not np.array_equal(time, solution.time):
         raise ValueError("rollout and saved value table must use the same times")
     params = solution.params
-    grid_a, grid_y = jax.numpy.asarray(solution.asset_grid), jax.numpy.asarray(solution.log_human_capital_grid)
-    interpolate = jax.jit(lambda table, query: _interpolate_value_jax(
-        table, grid_a, grid_y, query[..., 0], query[..., 1], solution.config
-    ))
-    represented = np.stack([
-        np.asarray(interpolate(solution.values[k], states[k]))
-        for k in range(solution.config.periods)
-    ])
-    terminal = params.bequest_weight * states[-1, :, 0] ** params.bequest_power / params.bequest_power
+    grid_a, grid_y = (
+        jax.numpy.asarray(solution.asset_grid),
+        jax.numpy.asarray(solution.log_human_capital_grid),
+    )
+    interpolate = jax.jit(
+        lambda table, query: _interpolate_value_jax(
+            table, grid_a, grid_y, query[..., 0], query[..., 1], solution.config
+        )
+    )
+    represented = np.stack(
+        [
+            np.asarray(interpolate(solution.values[k], states[k]))
+            for k in range(solution.config.periods)
+        ]
+    )
+    terminal = (
+        params.bequest_weight * states[-1, :, 0] ** params.bequest_power / params.bequest_power
+    )
     all_values = np.concatenate((represented, terminal[None]), axis=0)
     duration = np.diff(time)
     consumption, hours = controls[..., 0], controls[..., 1]
     flow = (
         params.consumption_weight * consumption**params.consumption_power / params.consumption_power
-        + params.leisure_weight * (1.0 - hours)**params.leisure_power / params.leisure_power
+        + params.leisure_weight * (1.0 - hours) ** params.leisure_power / params.leisure_power
     )
-    reevaluated_q = (
-        (duration * _exprel(-params.rho * duration))[:, None] * flow
-        + np.exp(-params.rho * duration)[:, None] * all_values[1:]
-    )
+    reevaluated_q = (duration * _exprel(-params.rho * duration))[:, None] * flow + np.exp(
+        -params.rho * duration
+    )[:, None] * all_values[1:]
     discounted_defects = np.exp(-params.rho * time[:-1])[:, None] * (represented - reevaluated_q)
     realized = lifetime_utilities(time, states, controls, params)
     initial_gap = reevaluated_q[0] - realized
@@ -578,10 +589,14 @@ def audit_saved_recovery(
     if _hash(folder / "policies.npz") != run["source_sha256"]["policies"]:
         raise ValueError("saved value/policy table differs from the validation source")
     solution, source = load_solution(folder, platform)
-    stronger = replace(solution, config=replace(
-        solution.config, refinement_starts=refinement_starts,
-        refinement_steps=refinement_steps,
-    ))
+    stronger = replace(
+        solution,
+        config=replace(
+            solution.config,
+            refinement_starts=refinement_starts,
+            refinement_steps=refinement_steps,
+        ),
+    )
     sidecar = validation_path.with_suffix(".npz")
     prefix = run["array_prefix"]
     with np.load(sidecar) as arrays:
@@ -591,31 +606,51 @@ def audit_saved_recovery(
     decomposition = recovery_gap_decomposition(solution, time, states, controls, policy_values)
     people = validation["cohort"]["people"]
     gaps = decomposition["initial_value_gap"][:people]
-    selected = list(dict.fromkeys([
-        int(np.argmin(gaps)), int(np.argmax(gaps)),
-        *np.argsort(np.abs(gaps))[::-1][:top_types].tolist(),
-    ]))
+    selected = list(
+        dict.fromkeys(
+            [
+                int(np.argmin(gaps)),
+                int(np.argmax(gaps)),
+                *np.argsort(np.abs(gaps))[::-1][:top_types].tolist(),
+            ]
+        )
+    )
     report: dict[str, Any] = {
         "purpose": "same-table search-regret lower bounds and signed along-path value defects",
         "source_validation": str(validation_path),
-        "source_sha256": {"validation": _hash(validation_path), "trajectory": _hash(sidecar),
-                          "policies": _hash(folder / "policies.npz")},
-        "folder": str(folder), "device": solution.device,
+        "source_sha256": {
+            "validation": _hash(validation_path),
+            "trajectory": _hash(sidecar),
+            "policies": _hash(folder / "policies.npz"),
+        },
+        "folder": str(folder),
+        "device": solution.device,
         "saved_config": source["config"],
-        "recovery_config_changes": {"refinement_starts": refinement_starts,
-                                     "refinement_steps": refinement_steps},
+        "recovery_config_changes": {
+            "refinement_starts": refinement_starts,
+            "refinement_steps": refinement_steps,
+        },
         "identity": "Q0-U = sum(k=1..N-1) exp(-rho*t[k])*(V[k]-Q[k])",
-        "maximum_saved_policy_value_recomputation_error": float(np.max(np.abs(decomposition["saved_policy_value_error"]))),
+        "maximum_saved_policy_value_recomputation_error": float(
+            np.max(np.abs(decomposition["saved_policy_value_error"]))
+        ),
         "maximum_telescoping_error": float(np.max(np.abs(decomposition["telescoping_error"]))),
-        "selection": "minimum/maximum signed gap and top absolute gaps; initial state plus largest absolute discounted defects after period zero",
+        "selection": (
+            "minimum/maximum signed gap and top absolute gaps; initial state plus "
+            "largest absolute discounted defects after period zero"
+        ),
         "types": [],
-        "limitations": "Fixed paths and continuation values; sampled feasible improvements are lower bounds on optimizer regret, not global optima or population convergence.",
+        "limitations": (
+            "Fixed paths and continuation values; sampled feasible improvements are "
+            "lower bounds on optimizer regret, not global optima or population convergence."
+        ),
     }
     for person in selected:
         defects = decomposition["discounted_defects"][:, person]
         periods = [0, *(np.argsort(np.abs(defects[1:]))[::-1][:states_per_type] + 1).tolist()]
         type_report: dict[str, Any] = {
-            "person": person, "initial_assets": float(states[0, person, 0]),
+            "person": person,
+            "initial_assets": float(states[0, person, 0]),
             "initial_human_capital": float(np.exp(states[0, person, 1])),
             "value_gap": float(gaps[person]),
             "positive_discounted_defect_sum": float(np.maximum(defects[1:], 0).sum()),
@@ -626,35 +661,89 @@ def audit_saved_recovery(
             exact = states[period, person]
             # The simulator accepts 1e-10 boundary roundoff; public recovery
             # requires exact containment. Record this sub-tolerance adjustment.
-            query = np.clip(exact, [solution.asset_grid[0], solution.log_human_capital_grid[0]],
-                            [solution.asset_grid[-1], solution.log_human_capital_grid[-1]])
-            if np.max(np.abs(query-exact)) > 1e-10:
+            query = np.clip(
+                exact,
+                [solution.asset_grid[0], solution.log_human_capital_grid[0]],
+                [solution.asset_grid[-1], solution.log_human_capital_grid[-1]],
+            )
+            if np.max(np.abs(query - exact)) > 1e-10:
                 raise ValueError("saved audit state is outside its computational domain")
             results = []
             for candidate in (solution, stronger):
-                recovered = greedy_policy_value_at(candidate, int(period), query[0:1], np.exp(query[1:2]))
+                recovered = greedy_policy_value_at(
+                    candidate, int(period), query[0:1], np.exp(query[1:2])
+                )
                 results.append([float(array[0]) for array in recovered])
             baseline, strong = results
             original_q = float(decomposition["reevaluated_policy_values"][period, person])
             difference = strong[0] - original_q
             row = {
-                "period": int(period), "model_age": float(time[period]),
-                "state_A_logK": exact.tolist(), "query_roundoff_adjustment": (query-exact).tolist(),
+                "period": int(period),
+                "model_age": float(time[period]),
+                "state_A_logK": exact.tolist(),
+                "query_roundoff_adjustment": (query - exact).tolist(),
                 "saved_control_c_h_q": controls[period, person].tolist(),
                 "represented_value": float(decomposition["represented_values"][period, person]),
                 "saved_policy_objective": original_q,
                 "baseline_recovered_objective": baseline[0],
-                "baseline_minus_saved_objective": baseline[0]-original_q,
+                "baseline_minus_saved_objective": baseline[0] - original_q,
                 "stronger_recovered_objective": strong[0],
                 "stronger_control_c_h_q": strong[1:],
                 "stronger_minus_saved_objective": difference,
                 "observed_policy_regret_lower_bound": max(0.0, difference),
-                "saved_value_defect": float(decomposition["represented_values"][period, person]-original_q),
-                "stronger_value_defect": float(decomposition["represented_values"][period, person]-strong[0]),
+                "saved_value_defect": float(
+                    decomposition["represented_values"][period, person] - original_q
+                ),
+                "stronger_value_defect": float(
+                    decomposition["represented_values"][period, person] - strong[0]
+                ),
                 "discounted_saved_value_defect": float(defects[period]),
             }
             type_report["states"].append(row)
-            print(json.dumps({"person": person, "period": int(period), "regret_lower_bound": max(0.0, difference), "saved_value_defect": row["saved_value_defect"]}), flush=True)
+            print(
+                json.dumps(
+                    {
+                        "person": person,
+                        "period": int(period),
+                        "regret_lower_bound": max(0.0, difference),
+                        "saved_value_defect": row["saved_value_defect"],
+                    }
+                ),
+                flush=True,
+            )
+        worst_period = periods[1]
+        worst_state = states[worst_period, person]
+        lower_indices = [
+            int(np.clip(np.searchsorted(grid, coordinate, side="right") - 1, 0, len(grid) - 2))
+            for grid, coordinate in zip(
+                (solution.asset_grid, solution.log_human_capital_grid), worst_state, strict=True
+            )
+        ]
+        corner_indices = [
+            (lower_indices[0] + i, lower_indices[1] + j) for i in (0, 1) for j in (0, 1)
+        ]
+        corner_states = np.asarray(
+            [
+                (solution.asset_grid[i], solution.log_human_capital_grid[j])
+                for i, j in corner_indices
+            ]
+        )
+        corner_recovery = greedy_policy_value_at(
+            stronger, int(worst_period), corner_states[:, 0], np.exp(corner_states[:, 1])
+        )
+        type_report["worst_defect_cell_corners"] = [
+            {
+                "period": int(worst_period),
+                "grid_index": list(index),
+                "state_A_logK": corner_states[k].tolist(),
+                "stored_node_value": float(solution.values[worst_period, *index]),
+                "stronger_recovered_objective": float(corner_recovery[0][k]),
+                "stronger_minus_stored_node_value": float(
+                    corner_recovery[0][k] - solution.values[worst_period, *index]
+                ),
+            }
+            for k, index in enumerate(corner_indices)
+        ]
         report["types"].append(type_report)
     output.parent.mkdir(parents=True, exist_ok=True)
     temporary = output.with_suffix(".json.tmp")
@@ -667,7 +756,9 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("output/solver_benchmarks"))
     parser.add_argument("--folders", nargs="+", type=Path)
-    parser.add_argument("--recovery-audit", type=Path, help="audit a saved cohort JSON instead of simulating")
+    parser.add_argument(
+        "--recovery-audit", type=Path, help="audit a saved cohort JSON instead of simulating"
+    )
     parser.add_argument("--audit-run-index", type=int, default=-1)
     parser.add_argument("--audit-top-types", type=int, default=3)
     parser.add_argument("--audit-states-per-type", type=int, default=4)
@@ -680,9 +771,16 @@ def main() -> None:
     if args.recovery_audit is not None:
         if args.folders:
             parser.error("--folders and --recovery-audit are separate validation modes")
-        audit_saved_recovery(args.recovery_audit, args.output, args.platform, args.audit_run_index,
-                             args.audit_top_types, args.audit_states_per_type,
-                             args.audit_refinement_starts, args.audit_refinement_steps)
+        audit_saved_recovery(
+            args.recovery_audit,
+            args.output,
+            args.platform,
+            args.audit_run_index,
+            args.audit_top_types,
+            args.audit_states_per_type,
+            args.audit_refinement_starts,
+            args.audit_refinement_steps,
+        )
         return
     if not args.folders:
         parser.error("provide --folders or --recovery-audit")
