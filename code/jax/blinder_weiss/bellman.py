@@ -84,6 +84,7 @@ class BellmanConfig:
     refinement_starts: int = 1
     control_batch_size: int = 256
     neighbor_policy_sweeps: int = 2
+    neighbor_destination_candidates: bool = False
     consumption_polish: bool = False
     value_interpolation: Literal["bilinear", "pchip", "monotone_bicubic"] = "bilinear"
     compute_platform: Literal["auto", "cpu", "gpu"] = "auto"
@@ -969,12 +970,56 @@ def _make_control_optimizer(
             & candidate_feasible
             & (candidate_values > values)
         )
-        return (
+        result = (
             jnp.where(improved[:, None], translated_controls, controls),
             jnp.where(improved, candidate_values, values),
             jnp.where(improved, candidate_consumption, consumption),
             jnp.where(improved, candidate_training, training_time),
         )
+        if config.neighbor_destination_candidates:
+            source_states = jnp.roll(
+                flat_states.reshape((*neighbor_shape, 2)), shift=shift, axis=axis
+            ).reshape((-1, 2))
+            source_absolute_controls = jnp.column_stack(
+                (
+                    source_consumption,
+                    source_controls[:, 0],
+                    source_controls[:, 0] * source_controls[:, 1],
+                )
+            )
+            # A richer neighbor can retain the same destination assets by
+            # consuming its extra resources. This supplies feasible candidates
+            # at A_max, where copying absolute consumption alone leaves the grid.
+            source_next = constant_control_transition(
+                source_states, source_absolute_controls, params, step
+            )
+            target_next = constant_control_transition(
+                flat_states, source_absolute_controls, params, step
+            )
+            consumption_factor = step * _exprel(params.interest_rate * step)
+            matched_consumption = (
+                source_consumption + (target_next[:, 0] - source_next[:, 0]) / consumption_factor
+            )
+            matched_controls, matched_representable = translate_neighbor_controls(
+                source_controls, matched_consumption, flat_states
+            )
+            matched_values, matched_feasible, matched_c, matched_q = evaluate_controls(
+                matched_controls, flat_states, continuation_values, continuation_is_terminal
+            )
+            matched_improved = (
+                has_neighbor
+                & matched_representable
+                & matched_feasible
+                & jnp.isclose(matched_c, matched_consumption, rtol=1e-10, atol=1e-10)
+                & (matched_values > result[1])
+            )
+            result = (
+                jnp.where(matched_improved[:, None], matched_controls, result[0]),
+                jnp.where(matched_improved, matched_values, result[1]),
+                jnp.where(matched_improved, matched_c, result[2]),
+                jnp.where(matched_improved, matched_q, result[3]),
+            )
+        return result
 
     def incumbent_seed(
         incumbent_policy: Array,

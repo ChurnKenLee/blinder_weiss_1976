@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--polish-consumption", action="store_true")
+    parser.add_argument("--neighbor-destinations", action="store_true")
     parser.add_argument(
         "--interpolation", choices=["bilinear", "pchip", "monotone_bicubic"], default="bilinear"
     )
@@ -48,6 +49,7 @@ def main() -> None:
         refinement_steps=args.refinement_steps,
         control_batch_size=args.batch_size,
         value_interpolation=args.interpolation,
+        neighbor_destination_candidates=args.neighbor_destinations,
         **({"consumption_polish": True} if args.polish_consumption else {}),
     )
     args.output.mkdir(parents=True, exist_ok=True)
