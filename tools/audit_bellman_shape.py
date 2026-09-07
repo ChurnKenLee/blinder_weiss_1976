@@ -2,6 +2,7 @@
 
 Reports measured derivatives and algebraic reconstruction constraints; this
 is a shape check, not a control-search or mesh-convergence certificate.
+Run with PYTHONPATH=code/jax:tools to include the shared saved-solution loader.
 """
 
 from __future__ import annotations

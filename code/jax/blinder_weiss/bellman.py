@@ -7,7 +7,7 @@ therefore returns approximations to ``V(t, A, K)`` and to the feedback policies
 ``c(t, A, K)``, ``h(t, A, K)``, and ``q(t, A, K)``.
 
 No finite differences of the value function are taken.  The continuation
-value is evaluated by monotone bilinear interpolation, and the state constraint
+value is evaluated by bilinear or optional cubic interpolation. The state constraint
 is imposed through the feasible consumption set over each semi-Lagrangian
 step.  Controls are constant within a step, which makes the state transition
 available in closed form.
@@ -57,8 +57,17 @@ class BellmanConfig:
     a silent CPU fallback; ``device_index`` selects among devices on the
     chosen platform. ``value_interpolation="pchip"`` enables experimental
     sequential cubic continuation; it is smoother but does not guarantee
-    coordinate monotonicity. ``consumption_polish`` enables exact conditional
-    consumption search for the default bilinear representation only.
+    coordinate monotonicity. ``value_interpolation="monotone_bicubic"`` limits
+    cubic derivatives jointly to preserve coordinate monotonicity of monotone
+    value tables. ``consumption_polish`` enables exact conditional consumption
+    search for the default bilinear representation only.
+
+    ``neighbor_policy_sweeps`` bounds policy propagation across the state grid.
+    An optional ``neighbor_policy_tolerance`` stops earlier when relative value
+    gains become negligible. Use zero for cubic solves: small unresolved
+    declines can otherwise be amplified by subsequent reconstruction.
+    ``neighbor_destination_candidates`` also tries consumption adjustments
+    that preserve a neighboring policy's destination assets.
     """
 
     periods: int = 70
