@@ -7,5 +7,14 @@ gh auth status --hostname github.com
 gh auth setup-git --hostname github.com
 git lfs install --local
 mkdir -p .git/marimo-autosave
-nohup python3 tools/github_autosave.py --repo "$repo_dir" --branch "$branch" --interval 5 --notebook /marimo/notebook.py > .git/marimo-autosave/worker.log 2>&1 < /dev/null &
-echo "Autosave launched. Verify .git/marimo-autosave/status.json reports synced."
+python3 - "$repo_dir" "$branch" <<'LAUNCH'
+import pathlib, subprocess, sys
+repo=pathlib.Path(sys.argv[1])
+with (repo/'.git/marimo-autosave/worker.log').open('a') as log:
+    child=subprocess.Popen(
+        ['python3', str(repo/'tools/github_autosave.py'), '--repo', str(repo),
+         '--branch', sys.argv[2], '--interval', '5', '--notebook', '/marimo/notebook.py'],
+        stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+print('Detached autosave worker started:', child.pid)
+LAUNCH
+echo "Verify .git/marimo-autosave/status.json reports a recent successful push."

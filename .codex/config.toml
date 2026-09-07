@@ -1,4 +1,15 @@
-# Automatically review eligible approval requests for project work.
+#:schema https://developers.openai.com/codex/config-schema.json
+# Quality-first, high-autonomy configuration for this GPU research project.
+model = "gpt-6-astra"
+review_model = "gpt-6-astra"
+model_reasoning_effort = "ultra"
+plan_mode_reasoning_effort = "ultra"
+service_tier = "priority"
+model_verbosity = "low"
+tool_output_token_limit = 16000
+web_search = "live"
+
+# Automatic risk review; managed restrictions still take precedence.
 approval_policy = "on-request"
 approvals_reviewer = "auto_review"
 sandbox_mode = "workspace-write"
@@ -8,3 +19,25 @@ network_access = true
 
 [agents]
 enabled = true
+# This hosted session exposes four total slots: one primary plus three workers.
+max_concurrent_threads_per_session = 3
+max_depth = 2
+default_subagent_model = "gpt-6-astra"
+default_subagent_reasoning_effort = "ultra"
+interrupt_message = true
+
+[features]
+# Pin the installed version's stable execution optimizations.
+fast_mode = true
+enable_request_compression = true
+shell_snapshot = true
+unified_exec = true
+
+[shell_environment_policy.set]
+LANG = "C.UTF-8"
+LC_ALL = "C.UTF-8"
+PYTHONUNBUFFERED = "1"
+
+[tui]
+animations = false
+auto_recap = false

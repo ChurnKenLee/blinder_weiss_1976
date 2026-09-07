@@ -31,7 +31,8 @@ def _(github_sync_refresh, mo):
         _s = _json.loads(_file.read_text())
         try:
             _os.kill(_s['pid'], 0)
-            _alive = True
+            _proc_stat = _Path('/proc') / str(_s['pid']) / 'stat'
+            _alive = _proc_stat.exists() and _proc_stat.read_text().split()[2] != 'Z' 
         except ProcessLookupError:
             _alive = False
         _phase = _s['phase'] if _alive else 'worker not running'
