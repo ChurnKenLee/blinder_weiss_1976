@@ -23,6 +23,9 @@ def main() -> None:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--asset-nodes", type=int, default=31)
     parser.add_argument("--human-capital-nodes", type=int, default=25)
+    parser.add_argument("--asset-maximum", type=float, default=35.0)
+    parser.add_argument("--log-human-capital-minimum", type=float, default=-2.0)
+    parser.add_argument("--log-human-capital-maximum", type=float, default=2.25)
     parser.add_argument("--periods", type=int, default=70)
     parser.add_argument("--control-nodes", type=int, default=11)
     parser.add_argument("--consumption-nodes", type=int, default=15)
@@ -44,6 +47,9 @@ def main() -> None:
         compute_platform="gpu",
         asset_nodes=args.asset_nodes,
         human_capital_nodes=args.human_capital_nodes,
+        asset_maximum=args.asset_maximum,
+        log_human_capital_minimum=args.log_human_capital_minimum,
+        log_human_capital_maximum=args.log_human_capital_maximum,
         periods=args.periods,
         hours_nodes=args.control_nodes,
         investment_nodes=args.control_nodes,
