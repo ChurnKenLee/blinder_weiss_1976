@@ -58,7 +58,7 @@ def main() -> None:
         report['results'].append(row)
         print(json.dumps(row), flush=True)
         report['device'] = solution.device
-        report['params'] = asdict(params) if hasattr(params, '__dataclass_fields__') else params._asdict()
+        report['params'] = params._asdict()
         temp = args.output / 'report.json.tmp'
         temp.write_text(json.dumps(report, indent=2) + '\n')
         temp.replace(args.output / 'report.json')

@@ -40,6 +40,12 @@ from .model import (  # noqa: E402
     earnings_tradeoff,
     flow_utility,
 )
+from .population import (  # noqa: E402
+    CohortMoments,
+    CohortSimulation,
+    cohort_moments,
+    simulate_cohort,
+)
 from .solver import (  # noqa: E402
     CollocationResult,
     SolverConfig,
@@ -56,6 +62,8 @@ __all__ = [
     "BellmanSimulation",
     "BellmanSolution",
     "CollocationResult",
+    "CohortMoments",
+    "CohortSimulation",
     "ModelParams",
     "PathDiagnostics",
     "SolverConfig",
@@ -63,6 +71,7 @@ __all__ = [
     "bellman_refinement_config",
     "bequest_utility",
     "constant_control_transition",
+    "cohort_moments",
     "diagnose_bellman",
     "diagnose_path",
     "dynamics",
@@ -74,6 +83,7 @@ __all__ = [
     "regime_labels",
     "solve_lifecycle",
     "simulate_policy",
+    "simulate_cohort",
     "solve_bellman",
     "solve_bellman_converged",
     "solve_mesh_sequence",
