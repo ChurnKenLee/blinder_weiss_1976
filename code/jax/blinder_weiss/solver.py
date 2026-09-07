@@ -9,7 +9,6 @@ from typing import Any
 import jax
 import jax.numpy as jnp
 import numpy as np
-from cyipopt import minimize_ipopt
 from scipy.optimize import Bounds, NonlinearConstraint, OptimizeResult, minimize
 from scipy.sparse import coo_array
 
@@ -306,6 +305,8 @@ def solve_lifecycle(
     variable_bounds = Bounds(lower, upper)  # pyright: ignore[reportArgumentType]
 
     if config.optimizer == "ipopt":
+        from cyipopt import minimize_ipopt
+
         constraints = [
             {
                 "type": "eq",
