@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument("--control-nodes", type=int, default=11)
     parser.add_argument("--consumption-nodes", type=int, default=15)
     parser.add_argument("--refinement-steps", type=int, default=24)
+    parser.add_argument("--refinement-starts", type=int, default=1)
     parser.add_argument("--batch-size", type=int, default=256)
     parser.add_argument("--repeats", type=int, default=3)
     parser.add_argument("--polish-consumption", action="store_true")
@@ -55,6 +56,7 @@ def main() -> None:
         investment_nodes=args.control_nodes,
         consumption_nodes=args.consumption_nodes,
         refinement_steps=args.refinement_steps,
+        refinement_starts=args.refinement_starts,
         control_batch_size=args.batch_size,
         value_interpolation=args.interpolation,
         neighbor_destination_candidates=args.neighbor_destinations,
@@ -88,6 +90,7 @@ def main() -> None:
         report["results"].append(row)
         print(json.dumps(row), flush=True)
         report["device"] = solution.device
+        report["device_memory_stats"] = jax.devices("gpu")[cfg.device_index].memory_stats()
         report["params"] = params._asdict()
         temp = args.output / "report.json.tmp"
         temp.write_text(json.dumps(report, indent=2) + "\n")
