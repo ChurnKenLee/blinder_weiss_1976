@@ -86,8 +86,8 @@ def effective_earnings_share(hours: Array, training_time: Array) -> Array:
     retirement ``(h, q) = (0, 0)``. Nonlinear optimizers can evaluate tiny
     violations ``q > h`` near retirement. Continue the quadratic loss there
     by its tangent ``2*q - h`` so these trials have bounded derivatives.
-    This extension is concave in earnings and C1 across positive ``q = h``;
-    it changes neither feasible values nor their derivatives. At the origin
+    For nonnegative hours and training, earnings remain concave and C1 across
+    positive ``q = h``. Feasible values and derivatives are unchanged. At the origin
     the quadratic branch preserves the existing autodiff convention.
     """
 
