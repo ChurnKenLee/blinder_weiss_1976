@@ -1572,6 +1572,9 @@ def greedy_policy_at(
     return consumption, hours, training_time
 
 
+_DOMAIN_TOLERANCE = 1e-10
+
+
 def simulate_policy(
     solution: BellmanSolution,
     *,
@@ -1579,7 +1582,12 @@ def simulate_policy(
     initial_human_capital: float | None = None,
     policy_method: Literal["greedy", "interpolate"] = "greedy",
 ) -> BellmanSimulation:
-    """Simulate a piecewise-constant feedback policy from an initial state."""
+    """Simulate a piecewise-constant feedback policy from an initial state.
+
+    The returned domain flag allows ``1e-10`` of boundary roundoff, matching
+    the optimizer's transition feasibility tolerance. Initial states must lie
+    inside the represented domain before this numerical tolerance is applied.
+    """
 
     params = solution.params
     config = solution.config
@@ -1639,10 +1647,10 @@ def simulate_policy(
         hours = controls[:, 1]
         training_time = controls[:, 2]
         states_in_domain = (
-            (assets >= solution.asset_grid[0])
-            & (assets <= solution.asset_grid[-1])
-            & (log_human_capital >= solution.log_human_capital_grid[0])
-            & (log_human_capital <= solution.log_human_capital_grid[-1])
+            (assets >= solution.asset_grid[0] - _DOMAIN_TOLERANCE)
+            & (assets <= solution.asset_grid[-1] + _DOMAIN_TOLERANCE)
+            & (log_human_capital >= solution.log_human_capital_grid[0] - _DOMAIN_TOLERANCE)
+            & (log_human_capital <= solution.log_human_capital_grid[-1] + _DOMAIN_TOLERANCE)
         )
         stayed_in_domain = bool(np.all(states_in_domain))
     else:
@@ -1704,10 +1712,12 @@ def simulate_policy(
             assets[period + 1] = next_state[0]
             log_human_capital[period + 1] = next_state[1]
             next_state_in_domain = (
-                solution.asset_grid[0] <= next_state[0] <= solution.asset_grid[-1]
-                and solution.log_human_capital_grid[0]
+                solution.asset_grid[0] - _DOMAIN_TOLERANCE
+                <= next_state[0]
+                <= solution.asset_grid[-1] + _DOMAIN_TOLERANCE
+                and solution.log_human_capital_grid[0] - _DOMAIN_TOLERANCE
                 <= next_state[1]
-                <= solution.log_human_capital_grid[-1]
+                <= solution.log_human_capital_grid[-1] + _DOMAIN_TOLERANCE
             )
             stayed_in_domain = stayed_in_domain and next_state_in_domain
 
