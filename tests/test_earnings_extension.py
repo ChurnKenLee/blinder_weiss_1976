@@ -48,8 +48,7 @@ def test_positive_training_boundary_has_matching_one_sided_gradients(hours: floa
 
 @pytest.mark.parametrize(
     ("hours", "training"),
-    [(1e-18, 1e-16), (1.3695622208931231e-18, 1.232035497509927e-16), (0.0, 1e-16),
-     (1e-30, 1e-9)],
+    [(1e-18, 1e-16), (1.3695622208931231e-18, 1.232035497509927e-16), (0.0, 1e-16), (1e-30, 1e-9)],
 )
 def test_near_retirement_infeasible_trials_have_bounded_finite_gradients(
     hours: float, training: float
@@ -81,5 +80,7 @@ def test_extension_preserves_concavity_across_training_boundary() -> None:
     mixture_weight = random.uniform(0.0, 1.0, (200, 1))
     mixed = mixture_weight * left + (1.0 - mixture_weight) * right
     evaluate = jax.jit(jax.vmap(_extended_earnings))
-    lower_bound = mixture_weight[:, 0] * evaluate(left) + (1.0 - mixture_weight[:, 0]) * evaluate(right)
+    lower_bound = mixture_weight[:, 0] * evaluate(left) + (1.0 - mixture_weight[:, 0]) * evaluate(
+        right
+    )
     assert np.min(np.asarray(evaluate(mixed) - lower_bound)) >= -1e-14
