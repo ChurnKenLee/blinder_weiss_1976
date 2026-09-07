@@ -156,12 +156,12 @@ class RetirementReference:
         )
         if any(bound is not None and not np.isfinite(bound) for bound in bounds):
             raise ValueError("supplied state bounds must be finite")
-        floor = max(params.asset_floor, params.asset_floor if asset_minimum is None else asset_minimum)
+        floor = max(
+            params.asset_floor, params.asset_floor if asset_minimum is None else asset_minimum
+        )
         assets = initial_assets * self.assets_per_initial_asset
         consumption = initial_assets * self.consumption_per_initial_asset
-        log_capital = (
-            np.log(initial_human_capital) - params.human_capital_depreciation * self.time
-        )
+        log_capital = np.log(initial_human_capital) - params.human_capital_depreciation * self.time
         if not all(np.all(np.isfinite(array)) for array in (assets, consumption, log_capital)):
             raise ValueError("retirement path is not representable in float64")
         minimum_slack = float(np.min(assets) - floor)
@@ -172,9 +172,15 @@ class RetirementReference:
             raise ValueError("retirement asset ceiling binds or is violated")
         if np.any(consumption <= consumption_floor):
             raise ValueError("retirement consumption floor binds or is violated")
-        if log_human_capital_minimum is not None and np.min(log_capital) <= log_human_capital_minimum:
+        if (
+            log_human_capital_minimum is not None
+            and np.min(log_capital) <= log_human_capital_minimum
+        ):
             raise ValueError("retirement log-human-capital lower bound binds or is violated")
-        if log_human_capital_maximum is not None and np.max(log_capital) >= log_human_capital_maximum:
+        if (
+            log_human_capital_maximum is not None
+            and np.max(log_capital) >= log_human_capital_maximum
+        ):
             raise ValueError("retirement log-human-capital upper bound binds or is violated")
         return RetirementPath(
             reference=self,

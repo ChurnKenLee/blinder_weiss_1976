@@ -2,11 +2,10 @@
 
 import numpy as np
 import pytest
-from scipy.integrate import quad, solve_ivp
-from scipy.optimize import Bounds, LinearConstraint, minimize
-
 from blinder_weiss.model import benchmark_params
 from blinder_weiss.retirement import retirement_reference
+from scipy.integrate import quad, solve_ivp
+from scipy.optimize import Bounds, LinearConstraint, minimize
 
 
 @pytest.mark.parametrize(
@@ -74,7 +73,7 @@ def test_exact_retired_ode_and_unconstrained_path_feasibility(interest):
     )
     for n, consumption in enumerate(path.consumption):
         result = solve_ivp(
-            lambda _t, assets: interest * assets - consumption,
+            lambda _t, assets, consumption=consumption: interest * assets - consumption,
             (0.0, reference.step),
             [path.assets[n]],
             rtol=2e-12,
@@ -105,7 +104,9 @@ def test_exact_retired_ode_and_unconstrained_path_feasibility(interest):
     assert path.maximum_asset_slack > 0.0
 
 
-@pytest.mark.parametrize("power,interest,rho", [(-1.0, 0.05, 0.03), (0.4, 0.06, 0.02), (-1.0, 0.0, 0.03)])
+@pytest.mark.parametrize(
+    "power,interest,rho", [(-1.0, 0.05, 0.03), (0.4, 0.06, 0.02), (-1.0, 0.0, 0.03)]
+)
 def test_converges_to_independent_continuous_retirement_limit(power, interest, rho):
     horizon, wealth = 8.0, 4.0
     params = benchmark_params(
@@ -122,17 +123,22 @@ def test_converges_to_independent_continuous_retirement_limit(power, interest, r
     resource_integral = quad(lambda t: np.exp((growth - interest) * t), 0.0, horizon)[0]
     c0 = wealth / (resource_integral + terminal_ratio * np.exp((growth - interest) * horizon))
     terminal_assets = terminal_ratio * c0 * np.exp(growth * horizon)
-    continuous_value = quad(
-        lambda t: np.exp(-rho * t)
-        * (
-            params.consumption_weight * (c0 * np.exp(growth * t)) ** power / power
-            + params.leisure_weight / params.leisure_power
-        ),
-        0.0,
-        horizon,
-        epsabs=1e-12,
-        epsrel=1e-12,
-    )[0] + np.exp(-rho * horizon) * params.bequest_weight * terminal_assets**power / power
+    continuous_value = (
+        quad(
+            lambda t: (
+                np.exp(-rho * t)
+                * (
+                    params.consumption_weight * (c0 * np.exp(growth * t)) ** power / power
+                    + params.leisure_weight / params.leisure_power
+                )
+            ),
+            0.0,
+            horizon,
+            epsabs=1e-12,
+            epsrel=1e-12,
+        )[0]
+        + np.exp(-rho * horizon) * params.bequest_weight * terminal_assets**power / power
+    )
     consumption_errors, value_errors = [], []
     for periods in (20, 40, 80, 160):
         path = retirement_reference(params, periods=periods, step=horizon / periods).path(wealth)
@@ -161,12 +167,16 @@ def test_value_derivatives_scaling_and_terminal_only_case():
     np.testing.assert_allclose(reference.asset_value_curvature(assets), numerical_second, rtol=3e-8)
     assert np.all(reference.marginal_asset_value(assets) > 0.0)
     assert np.all(reference.asset_value_curvature(assets) < 0.0)
-    np.testing.assert_allclose(reference.path(6.0).consumption, 2.0 * reference.path(3.0).consumption)
+    np.testing.assert_allclose(
+        reference.path(6.0).consumption, 2.0 * reference.path(3.0).consumption
+    )
     terminal = retirement_reference(params, periods=0, step=0.5)
     terminal_path = terminal.path(3.0)
     assert terminal_path.consumption.size == 0
     np.testing.assert_equal(terminal_path.assets, [3.0])
-    assert terminal_path.value == pytest.approx(params.bequest_weight * 3.0**params.bequest_power / params.bequest_power)
+    assert terminal_path.value == pytest.approx(
+        params.bequest_weight * 3.0**params.bequest_power / params.bequest_power
+    )
     assert terminal.leisure_value == 0.0
 
 
