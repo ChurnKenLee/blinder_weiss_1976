@@ -1283,6 +1283,7 @@ def _make_control_optimizer(
                     0, config.neighbor_policy_sweeps, neighbor_sweep, initial_carry
                 )
             else:
+                neighbor_tolerance = config.neighbor_policy_tolerance
                 # A fixed small number of Jacobi sweeps can merely move a
                 # spurious value decline to the next node. Let useful policies
                 # propagate, with a hard work cap and no host synchronization.
@@ -1297,7 +1298,7 @@ def _make_control_optimizer(
                     scale = jnp.maximum(1.0, jnp.abs(old_values))
                     significant = jnp.isfinite(new_values) & (
                         ~jnp.isfinite(old_values)
-                        | (new_values - old_values > config.neighbor_policy_tolerance * scale)
+                        | (new_values - old_values > neighbor_tolerance * scale)
                     )
                     return iteration + 1, jnp.any(significant), updated
 
