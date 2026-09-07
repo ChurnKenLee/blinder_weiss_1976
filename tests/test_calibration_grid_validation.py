@@ -204,6 +204,60 @@ def test_saved_grid_smoke_comparison_reports_zero_for_identical_grids(tmp_path) 
         assert metrics["maximum_absolute"] == 0.0
     assert output.exists() and output.with_suffix(".npz").exists()
     assert "converged" not in result
+    audit = validation.audit_saved_recovery(
+        output,
+        tmp_path / "recovery_audit.json",
+        "cpu",
+        top_types=1,
+        states_per_type=1,
+        refinement_starts=2,
+        refinement_steps=4,
+    )
+    assert audit["maximum_saved_policy_value_recomputation_error"] < 1e-10
+    assert audit["maximum_telescoping_error"] < 1e-10
+    assert "converged" not in audit
+    assert len(audit["types"]) >= 1
+    for person in audit["types"]:
+        assert len(person["worst_defect_cell_corners"]) == 4
+        for state in person["states"]:
+            assert state["observed_policy_regret_lower_bound"] == max(
+                0.0, state["stronger_minus_saved_objective"]
+            )
     assert (
         result["runs"][0]["direct_references"]["direct_reference"]["status"] == "missing_reference"
     )
+
+
+def test_recovery_gap_decomposition_retains_sign_and_detects_stale_values() -> None:
+    params = benchmark_params(horizon=2.0)
+    time, states, controls = _trajectory(params)
+    solution = SimpleNamespace(
+        params=params,
+        config=BellmanConfig(periods=2, asset_nodes=3, human_capital_nodes=3),
+        time=time,
+        asset_grid=np.asarray([0.0, 5.0, 10.0]),
+        log_human_capital_grid=np.asarray([-1.0, 0.0, 1.0]),
+        values=np.asarray(
+            [
+                [[-20.0, -19.0, -18.0], [-12.0, -11.0, -10.0], [-8.0, -7.0, -6.0]],
+                [[-15.0, -14.0, -13.0], [-10.0, -9.0, -8.0], [-7.0, -6.0, -5.0]],
+                [[-1.0, -1.0, -1.0], [-0.2, -0.2, -0.2], [-0.1, -0.1, -0.1]],
+            ]
+        ),
+    )
+    evaluated = validation.recovery_gap_decomposition(
+        solution, time, states, controls, np.zeros((2, 2))
+    )
+    policy_values = evaluated["reevaluated_policy_values"]
+    expected_gap = policy_values[0] - validation.lifetime_utilities(time, states, controls, params)
+    np.testing.assert_allclose(evaluated["initial_value_gap"], expected_gap, atol=1e-13)
+    np.testing.assert_allclose(evaluated["telescoping_error"], 0.0, atol=1e-13)
+    signed_defects = (evaluated["represented_values"][1] - policy_values[1]) * np.exp(
+        -params.rho * time[1]
+    )
+    np.testing.assert_allclose(expected_gap, signed_defects, atol=1e-13)
+    stale = policy_values.copy()
+    stale[1, 0] += 0.25
+    checked = validation.recovery_gap_decomposition(solution, time, states, controls, stale)
+    assert checked["saved_policy_value_error"][1, 0] == pytest.approx(0.25)
+    np.testing.assert_allclose(checked["initial_value_gap"], expected_gap, atol=1e-13)
