@@ -678,7 +678,7 @@ def _make_control_optimizer(
         return controls.at[:, 2].set(
             jnp.clip(
                 controls[:, 2],
-                config.consumption_fraction_minimum,
+                0.0,
                 1.0,
             )
         )
