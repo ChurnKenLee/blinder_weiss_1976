@@ -42,7 +42,7 @@ def test_matches_independent_scipy_resource_allocation(power, interest, rho, ste
         lambda allocation: -np.dot(weights, allocation**power / power),
         initial,
         jac=lambda allocation: -weights * allocation ** (power - 1.0),
-        bounds=Bounds(np.full(periods + 1, 1e-10), np.full(periods + 1, np.inf)),
+        bounds=Bounds(1e-10, np.inf),
         constraints=LinearConstraint(prices, wealth, wealth),
         method="SLSQP",
         options={"ftol": 1e-13, "maxiter": 1000},
@@ -101,6 +101,7 @@ def test_exact_retired_ode_and_unconstrained_path_feasibility(interest):
     ) ** (1.0 / sigma)
     assert path.assets[-1] / path.consumption[-1] == pytest.approx(terminal_ratio, rel=2e-14)
     assert path.minimum_asset_slack > 0.0
+    assert path.maximum_asset_slack is not None
     assert path.maximum_asset_slack > 0.0
 
 
