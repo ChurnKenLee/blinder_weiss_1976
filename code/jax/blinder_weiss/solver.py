@@ -305,7 +305,8 @@ def solve_lifecycle(
     variable_bounds = Bounds(lower, upper)  # pyright: ignore[reportArgumentType]
 
     if config.optimizer == "ipopt":
-        from cyipopt import minimize_ipopt
+        # Optional native backend; Bellman and SLSQP do not require IPOPT.
+        from cyipopt import minimize_ipopt  # pyright: ignore[reportMissingImports]
 
         constraints = [
             {
