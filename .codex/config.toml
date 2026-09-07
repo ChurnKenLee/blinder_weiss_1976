@@ -1,3 +1,10 @@
-# .codex/config.toml
-approval_policy = "never"
+# Automatically review eligible approval requests for project work.
+approval_policy = "on-request"
+approvals_reviewer = "auto_review"
 sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+network_access = true
+
+[agents]
+enabled = true

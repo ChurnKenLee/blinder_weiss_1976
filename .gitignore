@@ -1,7 +1,4 @@
-# Local folders
-data/
-output/
-papers/
+# Project data, output, and papers are backed up using Git LFS.
 
 # Rebuildable local environments
 .direnv/
@@ -44,3 +41,11 @@ renv/staging/
 
 # Lean build output
 .lake/
+
+# Authentication and local autosave state
+.github-private/
+*.pem
+*.key
+.codex/auth.json
+.codex/sessions/
+.codex/*.sqlite*
