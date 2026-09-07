@@ -61,11 +61,11 @@ def _(github_sync_refresh, mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md("""
-    # GPU policy solver
+    # Blinder–Weiss policies and population dynamics
 
-    We are improving repeated calibration solves and checking policy smoothness.
-    The charts below show saved, completed GPU runs. Feasibility checks and
-    convergence comparisons remain separate from speed measurements.
+    We are reducing numerical policy jitter and building a deterministic continuum
+    population for calibration. The comparisons below retain the independent direct
+    solutions and distinguish numerical validation from empirical estimation.
     """)
     return
 
@@ -73,7 +73,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md("""
-    **2024 IPUMS downloads validated and backed up to GitHub.** ACS: 3,422,888 person records. ATUS: 7,669 respondent diaries; every diary totals 1,440 minutes. Raw data, dictionaries, checksums, and provenance are in `blinder_weiss_1976/data/ipums/`. The solver goal remains active.
+    **2024 IPUMS downloads validated and backed up to GitHub.** ACS: 3,422,888 person records. ATUS: 7,669 respondent diaries; every diary totals 1,440 minutes. Raw data, dictionaries, checksums, and provenance are in `blinder_weiss_1976/data/ipums/`. Empirical target definitions remain to be set; the calibration pilot uses synthetic targets.
     """)
     return
 
@@ -201,6 +201,22 @@ def _(benchmark_directory, mo, np, plt, reference_household):
         mo.md("**Lifecycle check against independent direct solutions.** The earlier human-capital floor forced some retired households to train. The wider grid covers their falling human capital. These comparisons are part of ongoing convergence checks."),
         _comparison_fig,
     ])
+    return
+
+
+@app.cell(hide_code=True)
+def continuum_intro(mo):
+    mo.md(r"""
+    ## Continuum distribution and calibration pilot
+
+    Quadrature integrates a specified initial distribution using deterministic,
+    weighted nodes. Forward transport moves probability mass across the state grid
+    as each cohort ages. Both use the same feasible policies and lifecycle dynamics.
+
+    The initial distribution and pilot targets are **synthetic**. Assets at the
+    numerical floor have a separate mass component; nearby interior mass is tracked
+    separately. Conservation and agreement under refinement are separate checks.
+    """)
     return
 
 

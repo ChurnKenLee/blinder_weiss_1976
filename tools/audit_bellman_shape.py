@@ -45,7 +45,9 @@ def audit(solution, subdivisions: int) -> dict:
 
     @jax.jit
     def age_metrics(values):
-        packed = prepare_monotone_bicubic(values, assets, log_k)
+        packed = prepare_monotone_bicubic(
+            values, assets, log_k, asset_power=solution.config.bicubic_asset_power
+        )
 
         def value(state):
             return monotone_bicubic_interpolate(
@@ -56,10 +58,13 @@ def audit(solution, subdivisions: int) -> dict:
                 state[1],
                 asset_grid_curvature=solution.config.asset_grid_curvature,
                 uniform_log_grid=True,
+                asset_power=solution.config.bicubic_asset_power,
             )
 
         gradients = jax.vmap(jax.grad(value))(queries)
-        constraints = bicubic_constraint_violations(packed, assets, log_k)
+        constraints = bicubic_constraint_violations(
+            packed, assets, log_k, asset_power=solution.config.bicubic_asset_power
+        )
         return (
             jnp.min(gradients, axis=0),
             jnp.sum(gradients < -1e-8, axis=0),
