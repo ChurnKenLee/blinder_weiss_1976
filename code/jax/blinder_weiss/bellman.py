@@ -367,7 +367,7 @@ def maximum_feasible_consumption(
     hours: Array,
     training_time: Array,
     params: ModelParams,
-    step: float,
+    step: ArrayLike,
     asset_minimum: ArrayLike,
     checkpoints: int,
 ) -> Array:

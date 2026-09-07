@@ -136,10 +136,13 @@ def test_consumption_respects_path_constraint_and_retains_incumbent() -> None:
     hours = jnp.asarray([[0.8, 0.5]])
     training = jnp.asarray([[0.6, 0.1]])
     arguments = (states, hours, training, continuation, asset_grid, log_grid, params)
-    keywords = dict(step=2.0, asset_minimum=1e-4, consumption_floor=1e-8, path_checkpoints=16)
-    consumption, value = optimize_conditional_consumption(*arguments, **keywords)
-    repeated_consumption, repeated_value = optimize_conditional_consumption(
-        *arguments, **keywords, incumbent_consumption=consumption
+    optimizer = partial(
+        optimize_conditional_consumption,
+        step=2.0, asset_minimum=1e-4, consumption_floor=1e-8, path_checkpoints=16,
+    )
+    consumption, value = optimizer(*arguments)
+    repeated_consumption, repeated_value = optimizer(
+        *arguments, incumbent_consumption=consumption
     )
     assert consumption.shape == (1, 2)
     assert np.all(np.asarray(repeated_value) >= np.asarray(value))
