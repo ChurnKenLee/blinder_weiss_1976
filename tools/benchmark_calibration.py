@@ -30,6 +30,9 @@ def main() -> None:
     parser.add_argument("--interpolation", default="bilinear")
     parser.add_argument("--fine", action="store_true")
     parser.add_argument("--people", type=int, default=256)
+    parser.add_argument("--neighbor-sweeps", type=int, default=2)
+    parser.add_argument("--neighbor-tolerance", type=float, default=None)
+    parser.add_argument("--neighbor-destinations", action="store_true")
     args = parser.parse_args()
     if args.people < 1:
         parser.error("--people must be positive")
@@ -47,7 +50,12 @@ def main() -> None:
         else {}
     )
     config = BellmanConfig(
-        compute_platform="gpu", value_interpolation=args.interpolation, **resolution
+        compute_platform="gpu",
+        value_interpolation=args.interpolation,
+        neighbor_policy_sweeps=args.neighbor_sweeps,
+        neighbor_policy_tolerance=args.neighbor_tolerance,
+        neighbor_destination_candidates=args.neighbor_destinations,
+        **resolution,
     )
     rng = np.random.default_rng(125)
     assets = rng.uniform(2.0, 8.0, args.people)
