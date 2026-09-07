@@ -52,7 +52,7 @@ def main() -> None:
         start = perf_counter()
         solution = solve_bellman(params, cfg)
         wall = perf_counter() - start
-        row = dict(call=i, compiled_call=i == 0, wall_seconds=wall,
+        row = dict(call=i, first_call_in_process=i == 0, wall_seconds=wall,
                    solve_seconds=solution.solve_seconds, leisure_weight=params.leisure_weight,
                    initial_value=solution.initial_value)
         report['results'].append(row)
