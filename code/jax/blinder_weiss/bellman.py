@@ -1372,12 +1372,11 @@ def value_at(
 
 @lru_cache(maxsize=16)
 def _cached_greedy_kernels(
-    params: ModelParams,
     config: BellmanConfig,
     backend: str,
     device_index: int,
 ) -> tuple[Any, Any, Any]:
-    """Compile and cache off-grid policy recovery for one model configuration."""
+    """Cache off-grid recovery and rollout, with dynamic model parameters."""
 
     devices = jax.devices(backend)
     if device_index >= len(devices):
@@ -1389,19 +1388,19 @@ def _cached_greedy_kernels(
     asset_grid_np, log_human_capital_grid_np = bellman_state_grids(config)
     asset_grid = jax.device_put(asset_grid_np, device)
     log_human_capital_grid = jax.device_put(log_human_capital_grid_np, device)
-    optimize_states = _make_control_optimizer(
-        params,
-        config,
-        asset_grid,
-        log_human_capital_grid,
-    )
-
     def recover_policy(
+        params: ModelParams,
         states: Array,
         continuation_values: Array,
         node_policy: Array,
         continuation_is_terminal: Array,
     ) -> tuple[Array, Array, Array, Array]:
+        optimize_states = _make_control_optimizer(
+            params,
+            config,
+            asset_grid,
+            log_human_capital_grid,
+        )
         incumbent_policy = jnp.stack(
             tuple(
                 _interpolate_jax(
@@ -1424,6 +1423,7 @@ def _cached_greedy_kernels(
         )
 
     def rollout(
+        params: ModelParams,
         initial_state: Array,
         continuation_history: Array,
         node_policy_history: Array,
@@ -1438,6 +1438,7 @@ def _cached_greedy_kernels(
                 continuation_is_terminal,
             ) = period_inputs
             policy_value, consumption, hours, training_time = recover_policy(
+                params,
                 state,
                 continuation_values,
                 node_policy,
@@ -1500,7 +1501,6 @@ def greedy_policy_value_at(
 
     states = np.stack((assets_array, log_human_capital), axis=-1)
     recover_policy, _, device = _cached_greedy_kernels(
-        solution.params,
         solution.config,
         solution.backend,
         solution.config.device_index,
@@ -1515,6 +1515,10 @@ def greedy_policy_value_at(
     )
     recovered = jax.device_get(
         recover_policy(
+            jax.device_put(
+                jax.tree.map(lambda value: np.asarray(value, dtype=np.float64), solution.params),
+                device,
+            ),
             jax.device_put(states, device),
             jax.device_put(solution.values[period + 1], device),
             jax.device_put(node_policy, device),
@@ -1581,12 +1585,15 @@ def simulate_policy(
         if not initial_state_in_domain:
             raise ValueError("initial state must lie inside the Bellman domain")
         _, rollout, device = _cached_greedy_kernels(
-            solution.params,
             solution.config,
             solution.backend,
             solution.config.device_index,
         )
         device_result = rollout(
+            jax.device_put(
+                jax.tree.map(lambda value: np.asarray(value, dtype=np.float64), params),
+                device,
+            ),
             jax.device_put(np.asarray([initial_assets, initial_log_human_capital]), device),
             jax.device_put(solution.values[1:], device),
             jax.device_put(
