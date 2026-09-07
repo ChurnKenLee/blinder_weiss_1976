@@ -61,6 +61,19 @@ coarse bilinear solution with conditional consumption polish and synthetic
 initial assets in [2,8], log human capital in [-0.25,0.25], seed 125. They do not
 measure data loading, estimation, or the cost of a fine-grid cohort.
 
+A complete coarse PCHIP evaluation (solve, 256-person weighted rollout, and a
+28-moment synthetic loss) takes 1.73–1.74 s after compilation. The first call
+was 12.26 s. Repeating the baseline at the end reproduces zero synthetic loss
+exactly; +/-1% and +/-2% leisure-weight perturbations move the loss away from
+zero. These same-grid synthetic targets isolate numerical performance; they
+are not an empirical calibration. Reproduce with:
+
+```bash
+PYTHONPATH=code/jax python tools/benchmark_calibration.py \
+  --interpolation pchip --people 256 \
+  --output output/solver_benchmarks/calibration_pchip.json
+```
+
 Raw results and arrays are in [`output/solver_benchmarks`](../../output/solver_benchmarks).
 The original numerical baseline is commit `f331628`; the temporary baseline
 copy only moved the unused IPOPT import to its backend branch.
