@@ -43,6 +43,18 @@ def load_solution(folder: Path) -> tuple[BellmanSolution, dict]:
     return solution, report
 
 
+def make_derivatives(asset_grid, log_grid, config, queries):
+    @jax.jit
+    def derivatives(values):
+        return jax.vmap(
+            jax.grad(
+                lambda z: _interpolate_value_jax(values, asset_grid, log_grid, z[0], z[1], config)
+            )
+        )(queries)
+
+    return derivatives
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("output/solver_benchmarks"))
@@ -70,20 +82,7 @@ def main() -> None:
         log_grid = jnp.asarray(solution.log_human_capital_grid)
         config = solution.config
 
-        def make_derivatives(asset_grid, log_grid, config):
-            @jax.jit
-            def derivatives(values):
-                return jax.vmap(
-                    jax.grad(
-                        lambda z: _interpolate_value_jax(
-                            values, asset_grid, log_grid, z[0], z[1], config
-                        )
-                    )
-                )(queries)
-
-            return derivatives
-
-        derivatives = make_derivatives(asset_grid, log_grid, config)
+        derivatives = make_derivatives(asset_grid, log_grid, config, queries)
         metrics = []
         for age in [0, 10, 25, 40, 55, 65]:
             index = int(age / solution.params.horizon * config.periods)

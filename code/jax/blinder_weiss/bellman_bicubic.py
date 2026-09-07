@@ -86,9 +86,7 @@ def _cross_difference_bounds(
     return jnp.minimum(raw_lower, raw_upper), jnp.maximum(raw_lower, raw_upper)
 
 
-def _project_pair(
-    lower: Array, upper: Array, first: Array, second: Array
-) -> tuple[Array, Array]:
+def _project_pair(lower: Array, upper: Array, first: Array, second: Array) -> tuple[Array, Array]:
     """Project a difference into its interval without increasing magnitudes."""
 
     above = second - first > upper
@@ -122,13 +120,13 @@ def _project_pair(
     return jnp.where(below, new_first, first), jnp.where(below, new_second, second)
 
 
-def _limit_cross_differences(
-    lower: Array, upper: Array, slopes: Array
-) -> Array:
+def _limit_cross_differences(lower: Array, upper: Array, slopes: Array) -> Array:
     edge_count = slopes.shape[0] - 1
 
     def forward(index, current):
-        first, second = _project_pair(lower[index], upper[index], current[index], current[index + 1])
+        first, second = _project_pair(
+            lower[index], upper[index], current[index], current[index + 1]
+        )
         return current.at[index].set(first).at[index + 1].set(second)
 
     def backward(index, current):
@@ -159,13 +157,10 @@ def _cell_twist_bounds(
     right_low = axis_slopes[1:, :-1] / other_width
     left_high = axis_slopes[:-1, 1:] / other_width
     right_high = axis_slopes[1:, 1:] / other_width
-    first = 3.0 * jnp.stack((-left_low, -right_low, high_term + left_high,
-                              high_term + right_high))
-    second = 3.0 * jnp.stack((low_term - left_low, low_term - right_low,
-                               left_high, right_high))
-    monotone_cell = (
-        ((low_difference >= 0.0) & (high_difference >= 0.0))
-        | ((low_difference <= 0.0) & (high_difference <= 0.0))
+    first = 3.0 * jnp.stack((-left_low, -right_low, high_term + left_high, high_term + right_high))
+    second = 3.0 * jnp.stack((low_term - left_low, low_term - right_low, left_high, right_high))
+    monotone_cell = ((low_difference >= 0.0) & (high_difference >= 0.0)) | (
+        (low_difference <= 0.0) & (high_difference <= 0.0)
     )
     return (
         jnp.where(monotone_cell[None, ...], jnp.minimum(first, second), -jnp.inf),
@@ -176,9 +171,7 @@ def _cell_twist_bounds(
 def _twist_bounds(
     values: Array, asset_grid: Array, log_grid: Array, asset_slopes: Array, log_slopes: Array
 ) -> tuple[Array, Array]:
-    x_lower, x_upper = _cell_twist_bounds(
-        asset_grid, log_grid, values, asset_slopes, log_slopes
-    )
+    x_lower, x_upper = _cell_twist_bounds(asset_grid, log_grid, values, asset_slopes, log_slopes)
     y_lower, y_upper = _cell_twist_bounds(
         log_grid, asset_grid, values.T, log_slopes.T, asset_slopes.T
     )
@@ -248,10 +241,17 @@ def bicubic_constraint_violations(
     x_lower, x_upper = _cross_difference_bounds(asset_grid, log_grid, values, asset_slopes)
     y_lower, y_upper = _cross_difference_bounds(log_grid, asset_grid, values.T, log_slopes.T)
     cross_violation = jnp.maximum(
-        jnp.max(jnp.maximum(x_lower - jnp.diff(log_slopes, axis=0),
-                           jnp.diff(log_slopes, axis=0) - x_upper)),
-        jnp.max(jnp.maximum(y_lower - jnp.diff(asset_slopes.T, axis=0),
-                           jnp.diff(asset_slopes.T, axis=0) - y_upper)),
+        jnp.max(
+            jnp.maximum(
+                x_lower - jnp.diff(log_slopes, axis=0), jnp.diff(log_slopes, axis=0) - x_upper
+            )
+        ),
+        jnp.max(
+            jnp.maximum(
+                y_lower - jnp.diff(asset_slopes.T, axis=0),
+                jnp.diff(asset_slopes.T, axis=0) - y_upper,
+            )
+        ),
     )
     lower, upper = _twist_bounds(values, asset_grid, log_grid, asset_slopes, log_slopes)
     return {
@@ -259,9 +259,9 @@ def bicubic_constraint_violations(
         "cross_slope_difference": jnp.maximum(0.0, cross_violation),
         "mixed_derivative": jnp.maximum(0.0, jnp.max(jnp.maximum(lower - twists, twists - upper))),
         "mixed_bound_intersection": jnp.maximum(0.0, jnp.max(lower - upper)),
-        "value_monotonicity": jnp.maximum(0.0, jnp.maximum(
-            -jnp.min(jnp.diff(values, axis=0)), -jnp.min(jnp.diff(values, axis=1))
-        )),
+        "value_monotonicity": jnp.maximum(
+            0.0, jnp.maximum(-jnp.min(jnp.diff(values, axis=0)), -jnp.min(jnp.diff(values, axis=1)))
+        ),
     }
 
 
@@ -291,12 +291,20 @@ def monotone_bicubic_interpolate(
     log_weight = (log_query - log_grid[j]) / log_width
 
     def along_assets(table, derivative_table, log_offset):
-        return _hermite(table[i, j + log_offset], table[i + 1, j + log_offset],
-                        derivative_table[i, j + log_offset],
-                        derivative_table[i + 1, j + log_offset], asset_width, asset_weight)
+        return _hermite(
+            table[i, j + log_offset],
+            table[i + 1, j + log_offset],
+            derivative_table[i, j + log_offset],
+            derivative_table[i + 1, j + log_offset],
+            asset_width,
+            asset_weight,
+        )
 
     return _hermite(
-        along_assets(values, asset_slopes, 0), along_assets(values, asset_slopes, 1),
-        along_assets(log_slopes, twists, 0), along_assets(log_slopes, twists, 1),
-        log_width, log_weight,
+        along_assets(values, asset_slopes, 0),
+        along_assets(values, asset_slopes, 1),
+        along_assets(log_slopes, twists, 0),
+        along_assets(log_slopes, twists, 1),
+        log_width,
+        log_weight,
     )
