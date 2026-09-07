@@ -216,3 +216,51 @@ def test_bicubic_direct_lookup_and_parameter_autodiff_are_finite() -> None:
         )
 
     assert np.isfinite(float(jax.grad(objective)(1.0)))
+
+
+def test_one_ulp_retirement_plateau_noise_cannot_disable_shape_constraints() -> None:
+    """A reduced age-69 table used to amplify roundoff into dV/dK=-0.001426."""
+
+    assets = jnp.asarray([4.70564211111111, 5.600084000000001,
+                          6.572303444444444, 7.622300444444444])
+    logs = jnp.asarray([1.541666666666667, 1.71875, 1.8958333333333335,
+                        2.072916666666667, 2.25])
+    # These retained discrepancies are only one or two ULPs within retirement
+    # plateaus. The older exact-sign mask skipped the surrounding mixed bounds.
+    values = jnp.asarray([
+        [-1.7858269429731248, -1.7858269429731253, -1.7849345935395777,
+         -1.778108976164038, -1.7649497462319579],
+        [-1.657943147153974, -1.657943147153974, -1.657943147153974,
+         -1.6579431471539745, -1.6570268484564896],
+        [-1.5584188824158896, -1.558418882415889, -1.5584188824158896,
+         -1.558418882415889, -1.5584188824158896],
+        [-1.4794490509259512, -1.4794490509259517, -1.4794490509259512,
+         -1.4794490509259512, -1.4794490509259512],
+    ])
+    asset_mesh, log_mesh = jnp.meshgrid(jnp.linspace(assets[0], assets[-1], 91),
+                                      jnp.linspace(logs[0], logs[-1], 91), indexing="ij")
+    queries = jnp.stack((asset_mesh.ravel(), log_mesh.ravel()), axis=1)
+
+    @jax.jit
+    def evaluate_gradients(packed):
+        def evaluate(query):
+            return monotone_bicubic_interpolate(packed, assets, logs, query[0], query[1])
+        return jax.vmap(jax.grad(evaluate))(queries)
+
+    reference = prepare_monotone_bicubic(values, assets, logs)
+    for scale in (1.0, 1e-20, 1e20):
+        scaled_values = values * scale
+        packed = prepare_monotone_bicubic(scaled_values, assets, logs)
+        np.testing.assert_array_equal(packed[0], scaled_values)
+        assert np.all(np.isfinite(np.asarray(packed)))
+        gradients = np.asarray(evaluate_gradients(packed)) / scale
+        assert np.min(gradients[:, 0]) >= -2e-13
+        assert np.min(gradients[:, 1]) >= -2e-13
+        # Relative scaling, rather than an absolute tolerance floor, keeps real
+        # derivatives when the entire value table has a very small magnitude.
+        np.testing.assert_allclose(np.asarray(packed[1:]) / scale, reference[1:],
+                                   rtol=2e-11, atol=2e-13)
+        diagnostics = bicubic_constraint_violations(packed, assets, logs)
+        assert float(diagnostics["value_monotonicity"]) > 0.0
+        assert float(diagnostics["mixed_derivative"]) / scale < 2e-12
+        assert float(diagnostics["mixed_bound_intersection"]) / scale < 2e-12
