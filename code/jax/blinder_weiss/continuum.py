@@ -1,0 +1,287 @@
+"""Deterministic approximation of an explicitly assumed initial probability law.
+
+The default law is synthetic: a bounded continuous joint law in assets and
+log human capital, a face component at the numerical asset floor, and optional
+point atoms. It is not an empirical wealth/skill distribution. Preference and
+technology heterogeneity require separate policy solutions and explicit type
+weights; the nodes here only vary initial states.
+"""
+
+from __future__ import annotations
+
+from dataclasses import asdict, dataclass, is_dataclass
+from typing import Any, Literal
+
+import numpy as np
+
+from .bellman import BellmanSolution
+from .population import CohortMoments, cohort_moments, simulate_cohort
+
+
+@dataclass(frozen=True)
+class InitialAtom:
+    """An initial point mass; capital is K, not log K."""
+
+    assets: float
+    human_capital: float
+    mass: float
+
+
+@dataclass(frozen=True)
+class SyntheticInitialDistribution:
+    r"""A bounded mixture with uniform continuous marginals in (A, log K).
+
+    Within the continuous component, U,V in [0,1] have joint density
+    ``1 + 3*correlation*(2*U-1)*(2*V-1)``. Thus Corr(A,log K) is exactly
+    ``correlation`` in [-1/3,1/3]; this is not Corr(A,K), and adding face or
+    point mass generally changes the overall correlation. Affine transforms
+    map U,V to the specified intervals. The face component has uniform log K
+    on the same interval. ``asset_floor_mass`` is placed at the supplied
+    numerical floor, which only approximates the economic borrowing limit.
+    All masses are probabilities, with the residual assigned to the interior.
+    """
+
+    asset_lower: float = 2.0
+    asset_upper: float = 8.0
+    log_human_capital_lower: float = -0.25
+    log_human_capital_upper: float = 0.25
+    correlation: float = 0.25
+    asset_floor_mass: float = 0.05
+    atoms: tuple[InitialAtom, ...] = (InitialAtom(5.0, 1.0, 0.05),)
+
+
+@dataclass(frozen=True)
+class PopulationNodes:
+    """Initial probability masses, including explicit face/point components."""
+
+    assets: np.ndarray
+    human_capital: np.ndarray
+    weights: np.ndarray
+    component: np.ndarray
+    description: str
+
+
+@dataclass(frozen=True)
+class PopulationStateMoments:
+    """State means and numerical-floor mass at *all* age boundaries."""
+
+    time: np.ndarray
+    assets: np.ndarray
+    human_capital: np.ndarray
+    log_human_capital: np.ndarray
+    asset_floor_mass: np.ndarray
+
+
+@dataclass(frozen=True)
+class PopulationResult:
+    """Common model-moment interface for cohort, quadrature and transport."""
+
+    backend: str
+    moments: CohortMoments
+    state_moments: PopulationStateMoments
+    diagnostics: dict[str, Any]
+    simulation: Any
+
+
+def _validate_initial_law(law: SyntheticInitialDistribution, asset_floor: float) -> float:
+    scalars = (
+        law.asset_lower, law.asset_upper, law.log_human_capital_lower,
+        law.log_human_capital_upper, law.correlation, law.asset_floor_mass, asset_floor,
+    )
+    if not np.all(np.isfinite(scalars)):
+        raise ValueError("initial distribution parameters must be finite")
+    if not asset_floor <= law.asset_lower < law.asset_upper:
+        raise ValueError("asset interval must be ordered and above the supplied asset floor")
+    if not law.log_human_capital_lower < law.log_human_capital_upper:
+        raise ValueError("log human capital interval must be strictly ordered")
+    if abs(law.correlation) > 1.0 / 3.0:
+        raise ValueError("continuous-component correlation must lie in [-1/3, 1/3]")
+    if law.asset_floor_mass < 0.0:
+        raise ValueError("asset_floor_mass must be nonnegative")
+    for atom in law.atoms:
+        if not np.all(np.isfinite((atom.assets, atom.human_capital, atom.mass))):
+            raise ValueError("atom values must be finite")
+        if atom.assets < asset_floor or atom.human_capital <= 0.0 or atom.mass < 0.0:
+            raise ValueError("atoms must have feasible states and nonnegative mass")
+    remainder = 1.0 - law.asset_floor_mass - sum(atom.mass for atom in law.atoms)
+    if remainder < -1e-14:
+        raise ValueError("initial component probabilities must sum to at most one")
+    return max(0.0, remainder)
+
+
+def initial_quadrature(
+    law: SyntheticInitialDistribution | None = None,
+    *,
+    nodes_per_dimension: int = 16,
+    asset_floor: float,
+) -> PopulationNodes:
+    """Return n² interior nodes, n face nodes and the explicitly listed atoms.
+
+    Gauss-Legendre integration is deterministic and has nonnegative normalized
+    weights. Zero-probability components are kept to preserve array shapes when
+    mixture probabilities change during calibration. There is no random seed
+    and no repeated normalization during the subsequent lifecycle rollout.
+    """
+
+    law = law or SyntheticInitialDistribution()
+    interior_mass = _validate_initial_law(law, asset_floor)
+    if (
+        isinstance(nodes_per_dimension, bool)
+        or not isinstance(nodes_per_dimension, (int, np.integer))
+        or nodes_per_dimension < 2
+    ):
+        raise ValueError("nodes_per_dimension must be an integer at least two")
+    raw_nodes, raw_weights = np.polynomial.legendre.leggauss(nodes_per_dimension)
+    unit_nodes = (raw_nodes + 1.0) / 2.0
+    unit_weights = raw_weights / 2.0
+    u, v = np.meshgrid(unit_nodes, unit_nodes, indexing="ij")
+    density = 1.0 + 3.0 * law.correlation * (2.0 * u - 1.0) * (2.0 * v - 1.0)
+    interior_weights = interior_mass * np.outer(unit_weights, unit_weights) * density
+    log_capital_span = law.log_human_capital_upper - law.log_human_capital_lower
+    assets = np.concatenate((
+        (law.asset_lower + (law.asset_upper - law.asset_lower) * u).ravel(),
+        np.full(nodes_per_dimension, asset_floor),
+        np.asarray([atom.assets for atom in law.atoms]),
+    ))
+    capital = np.concatenate((
+        np.exp(law.log_human_capital_lower + log_capital_span * v).ravel(),
+        np.exp(law.log_human_capital_lower + log_capital_span * unit_nodes),
+        np.asarray([atom.human_capital for atom in law.atoms]),
+    ))
+    weights = np.concatenate((
+        interior_weights.ravel(), law.asset_floor_mass * unit_weights,
+        np.asarray([atom.mass for atom in law.atoms]),
+    ))
+    # A single initial roundoff correction; never used to hide transport drift.
+    weights /= weights.sum()
+    component = np.concatenate((
+        np.full(nodes_per_dimension**2, "interior"),
+        np.full(nodes_per_dimension, "asset_floor"),
+        np.full(len(law.atoms), "point_atom"),
+    ))
+    return PopulationNodes(
+        assets, capital, weights, component,
+        "synthetic bounded correlated initial law; Gauss-Legendre probability quadrature",
+    )
+
+
+def sample_initial_population(
+    law: SyntheticInitialDistribution | None = None,
+    *,
+    people: int = 256,
+    seed: int = 125,
+    asset_floor: float,
+) -> PopulationNodes:
+    """IID comparison cohort from exactly the same mixture as the quadrature.
+
+    Conditional inversion samples the continuous copula. All people have equal
+    weights, so sampling error includes both mixture shares and initial states.
+    """
+
+    law = law or SyntheticInitialDistribution()
+    interior_mass = _validate_initial_law(law, asset_floor)
+    if isinstance(people, bool) or not isinstance(people, (int, np.integer)) or people < 1:
+        raise ValueError("people must be a positive integer")
+    rng = np.random.default_rng(seed)
+    selector, u, uniform_v = rng.uniform(size=(3, people))
+    k = 3.0 * law.correlation * (2.0 * u - 1.0)
+    # F(V | U=u) = (1-k)*V + k*V²; rationalization is stable near k=0.
+    v = 2.0 * uniform_v / (
+        1.0 - k + np.sqrt((1.0 - k)**2 + 4.0 * k * uniform_v)
+    )
+    assets = law.asset_lower + (law.asset_upper - law.asset_lower) * u
+    capital = np.exp(
+        law.log_human_capital_lower
+        + (law.log_human_capital_upper - law.log_human_capital_lower) * v
+    )
+    component = np.full(people, "interior", dtype="U16")
+    face = (selector >= interior_mass) & (selector < interior_mass + law.asset_floor_mass)
+    assets[face] = asset_floor
+    capital[face] = np.exp(
+        law.log_human_capital_lower
+        + (law.log_human_capital_upper - law.log_human_capital_lower) * uniform_v[face]
+    )
+    component[face] = "asset_floor"
+    lower = interior_mass + law.asset_floor_mass
+    for atom in law.atoms:
+        selected = (selector >= lower) & (selector < lower + atom.mass)
+        assets[selected], capital[selected], component[selected] = (
+            atom.assets, atom.human_capital, "point_atom"
+        )
+        lower += atom.mass
+    return PopulationNodes(
+        assets, capital, np.full(people, 1.0 / people), component,
+        f"IID cohort from synthetic bounded correlated initial law; seed={seed}",
+    )
+
+
+def simulate_population(
+    solution: BellmanSolution,
+    initial_nodes: PopulationNodes,
+    *,
+    backend: Literal["quadrature", "cohort", "transport"] = "quadrature",
+    participation_hours_threshold: float,
+    distribution_grid: Any = None,
+    store_snapshots: bool = False,
+) -> PopulationResult:
+    """Select a population approximation while keeping moment definitions fixed.
+
+    Quadrature is the reference default. ``cohort`` runs the same dynamics,
+    normally on IID nodes. Transport remains an explicit opt-in pending joint
+    distribution-grid/domain/policy/time convergence acceptance.
+    """
+
+    if backend not in {"quadrature", "cohort", "transport"}:
+        raise ValueError("backend must be quadrature, cohort or transport")
+    if backend == "transport":
+        from .distribution import initialize_distribution, simulate_distribution
+
+        if distribution_grid is None:
+            raise ValueError("transport requires an explicit distribution_grid")
+        initial_mass = initialize_distribution(
+            distribution_grid, initial_nodes.assets, initial_nodes.human_capital,
+            weights=initial_nodes.weights,
+        )
+        simulation = simulate_distribution(
+            solution, distribution_grid, initial_mass,
+            participation_hours_threshold=participation_hours_threshold,
+            store_snapshots=store_snapshots,
+        )
+        native_state = simulation.state_moments
+        state_moments = PopulationStateMoments(
+            time=solution.time.copy(),
+            assets=native_state.assets,
+            human_capital=native_state.human_capital,
+            log_human_capital=native_state.log_human_capital,
+            asset_floor_mass=native_state.asset_floor_mass,
+        )
+        diagnostics = (
+            asdict(simulation.diagnostics)
+            if is_dataclass(simulation.diagnostics) else dict(simulation.diagnostics)
+        )
+        return PopulationResult(backend, simulation.moments, state_moments, diagnostics, simulation)
+    cohort = simulate_cohort(
+        solution, initial_nodes.assets, initial_nodes.human_capital, weights=initial_nodes.weights
+    )
+    moments = cohort_moments(
+        cohort, participation_hours_threshold=participation_hours_threshold
+    )
+    floor = solution.config.asset_minimum
+    state_moments = PopulationStateMoments(
+        time=solution.time.copy(),
+        assets=cohort.assets @ cohort.weights,
+        human_capital=cohort.human_capital @ cohort.weights,
+        log_human_capital=cohort.log_human_capital @ cohort.weights,
+        asset_floor_mass=(np.abs(cohort.assets - floor) <= 1e-10) @ cohort.weights,
+    )
+    diagnostics = {
+        "total_mass": np.full(solution.config.periods + 1, cohort.weights.sum()),
+        "maximum_mass_drift": float(abs(cohort.weights.sum() - 1.0)),
+        "minimum_mass": float(cohort.weights.min()),
+        "minimum_consumption_capacity_slack": cohort.minimum_consumption_capacity_slack,
+        "numerical_asset_floor": floor,
+        "economic_asset_floor": float(solution.params.asset_floor),
+        "asset_floor_mass_tolerance": 1e-10,
+        "nodes": cohort.weights.size,
+    }
+    return PopulationResult(backend, moments, state_moments, diagnostics, cohort)
