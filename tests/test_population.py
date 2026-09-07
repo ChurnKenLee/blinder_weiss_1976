@@ -6,7 +6,7 @@ import jax
 import numpy as np
 import pytest
 from blinder_weiss import BellmanConfig, benchmark_params, simulate_policy, solve_bellman
-from blinder_weiss import population
+from blinder_weiss import bellman, population
 from blinder_weiss.bellman import constant_control_transition
 from blinder_weiss.model import effective_earnings_share
 from blinder_weiss.population import cohort_moments, simulate_cohort
@@ -77,6 +77,33 @@ def test_cohort_broadcasts_scalar_states_and_normalizes_large_weights(cohort_sol
     single = simulate_cohort(cohort_solution, 5.0, 1.0)
     assert single.states.shape == (4, 1, 2)
     np.testing.assert_array_equal(single.weights, [1.0])
+
+
+def test_fixed_cohort_size_reuses_rollout_for_changed_parameters(cohort_solution, monkeypatch):
+    changed_solution = solve_bellman(
+        cohort_solution.params._replace(leisure_weight=2.5), cohort_solution.config
+    )
+    original_optimizer = bellman._make_control_optimizer
+    traces = []
+
+    def count_optimizer_traces(*args, **kwargs):
+        traces.append(True)
+        return original_optimizer(*args, **kwargs)
+
+    bellman._cached_greedy_kernels.cache_clear()
+    monkeypatch.setattr(bellman, "_make_control_optimizer", count_optimizer_traces)
+    initial = simulate_cohort(cohort_solution, [0.5, 5.0], 1.0)
+    first_count = len(traces)
+    assert first_count > 0
+    changed = simulate_cohort(changed_solution, [0.75, 5.5], 1.0, weights=[1, 4])
+    assert len(traces) == first_count
+    assert not np.allclose(initial.controls, changed.controls)
+    bellman._cached_greedy_kernels.cache_clear()
+    fresh = simulate_cohort(changed_solution, [0.75, 5.5], 1.0, weights=[1, 4])
+    assert len(traces) > first_count
+    np.testing.assert_allclose(changed.states, fresh.states, atol=1e-10)
+    np.testing.assert_allclose(changed.controls, fresh.controls, atol=1e-10)
+    np.testing.assert_allclose(changed.policy_values, fresh.policy_values, atol=1e-10)
 
 
 @pytest.mark.parametrize(

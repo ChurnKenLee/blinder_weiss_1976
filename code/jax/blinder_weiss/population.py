@@ -19,8 +19,12 @@ import numpy as np
 from jax import Array
 from numpy.typing import ArrayLike
 
-from .bellman import BellmanConfig, BellmanSolution, _cached_greedy_kernels
-from .bellman import maximum_feasible_consumption
+from .bellman import (
+    BellmanConfig,
+    BellmanSolution,
+    _cached_greedy_kernels,
+    maximum_feasible_consumption,
+)
 from .model import ModelParams, effective_earnings_share
 
 _FEASIBILITY_TOLERANCE = 1e-8
