@@ -202,8 +202,8 @@ def fetch_metadata(output):
                 samples[source["collection"]] = sorted({x.get("value") for x in soup.select('input[name="selectedSamples[]"]') if x.get("value")})
             expected = source.get("variable")
             if expected:
-                heading = soup.find("h1")
-                if not heading or heading.get_text(strip=True) != expected:
+                headings = soup.find_all(["h1", "h2"])
+                if not any(node.get_text(strip=True) == expected for node in headings):
                     raise RuntimeError(f"Variable documentation is missing for {expected}")
             for node in soup(["script", "style", "input", "meta"]):
                 node.decompose()
