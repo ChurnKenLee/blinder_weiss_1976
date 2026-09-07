@@ -294,7 +294,9 @@ def _reference_comparison(
         "realized_utility": realized_utility,
         "reference_utility": reference_utility,
         "reference_minus_realized_utility": reference_utility - realized_utility,
-        "state_alignment": "independent DOP853 integration of linear direct controls, rtol1e-10 atol1e-12",
+        "state_alignment": (
+            "independent DOP853 integration of linear direct controls; rtol1e-10, atol1e-12"
+        ),
         "control_alignment": "linear direct controls evaluated at Bellman interval midpoints",
     }
 
