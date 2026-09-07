@@ -143,7 +143,18 @@ def _cell_twist_bounds(
     axis_slopes: Array,
     other_slopes: Array,
 ) -> tuple[Array, Array]:
-    """Mixed derivative intervals, ordered as corners 00, 10, 01, 11."""
+    """Mixed derivative intervals, ordered as corners 00, 10, 01, 11.
+
+    On each edge parallel to the other coordinate, the axis derivative is
+    itself a cubic Hermite curve. These bounds make the Bernstein coefficients
+    of that curve and of ``3 * axis_secant - axis_derivative`` nonnegative.
+    Consequently, at every point along the edge, the two endpoint derivatives
+    in the axis direction lie between zero and three times the local secant.
+    The resulting axis-direction cubic is monotone throughout the cell. For
+    decreasing cells the same argument applies after reversing signs. Taking
+    the intersection for both coordinate directions establishes both shape
+    conditions while retaining shared knot derivatives and C1 continuity.
+    """
 
     width = jnp.diff(axis_grid)[:, None]
     other_width = jnp.diff(other_grid)[None, :]
