@@ -22,6 +22,7 @@ from numpy.typing import ArrayLike
 from .bellman import (
     BellmanConfig,
     BellmanSolution,
+    _DOMAIN_TOLERANCE,
     _cached_greedy_kernels,
     maximum_feasible_consumption,
 )
@@ -167,11 +168,12 @@ def _cached_cohort_checks(config: BellmanConfig) -> Any:
         )
         minimum_slack = jnp.min(capacity - consumption)
         tolerance = _FEASIBILITY_TOLERANCE
+        domain_tolerance = _DOMAIN_TOLERANCE
         in_domain = jnp.all(
-            (assets >= config.asset_minimum - tolerance)
-            & (assets <= config.asset_maximum + tolerance)
-            & (log_human_capital >= config.log_human_capital_minimum - tolerance)
-            & (log_human_capital <= config.log_human_capital_maximum + tolerance)
+            (assets >= config.asset_minimum - domain_tolerance)
+            & (assets <= config.asset_maximum + domain_tolerance)
+            & (log_human_capital >= config.log_human_capital_minimum - domain_tolerance)
+            & (log_human_capital <= config.log_human_capital_maximum + domain_tolerance)
         )
         feasible = jnp.all(
             (consumption >= config.consumption_floor - tolerance)
@@ -212,8 +214,9 @@ def simulate_cohort(
     Raises ``ValueError`` for invalid initial states or weights and
     ``RuntimeError`` for nonfinite, infeasible, or out-of-domain trajectories.
     Feasibility uses the solver's within-period asset checkpoints and an
-    absolute numerical tolerance of ``1e-8``; this is not a continuous-time
-    mesh-convergence certificate.
+    absolute numerical tolerance of ``1e-8``. State-domain checks use ``1e-10``
+    to allow boundary roundoff. These are not continuous-time mesh-convergence
+    certificates.
     """
 
     initial_states, normalized_weights = _initial_cohort(

@@ -198,7 +198,7 @@ def test_bad_rollouts_cannot_silently_produce_calibration_moments(
     if failure == "nonfinite":
         values[0, 0] = np.nan
     elif failure == "domain":
-        states[-1, 0, 0] = cohort_solution.config.asset_maximum + 1.0
+        states[-1, 0, 0] = cohort_solution.config.asset_minimum - 1e-6
     else:
         controls[0, 0, 2] = controls[0, 0, 1] + 0.1
 
@@ -212,3 +212,20 @@ def test_bad_rollouts_cannot_silently_produce_calibration_moments(
     )
     with pytest.raises(RuntimeError, match=message):
         simulate_cohort(cohort_solution, 5.0, 1.0)
+
+
+def test_domain_boundary_roundoff_is_accepted(cohort_solution, monkeypatch) -> None:
+    cohort = simulate_cohort(cohort_solution, 5.0, 1.0)
+    states = cohort.states.copy()
+    states[-1, 0, 0] = np.nextafter(cohort_solution.config.asset_minimum, -np.inf)
+
+    def fake_rollout(*args):
+        return states, cohort.controls, cohort.policy_values
+
+    monkeypatch.setattr(
+        population,
+        "_cached_greedy_kernels",
+        lambda *args: (None, fake_rollout, jax.devices("cpu")[0]),
+    )
+    result = simulate_cohort(cohort_solution, 5.0, 1.0)
+    assert result.assets[-1, 0] < cohort_solution.config.asset_minimum
