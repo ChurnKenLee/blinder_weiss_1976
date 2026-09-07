@@ -199,6 +199,7 @@ def _twist_bounds(
     return lower, upper
 
 
+@jax.jit
 def prepare_monotone_bicubic(
     values: Array, asset_grid: Array, log_human_capital_grid: Array
 ) -> Array:
