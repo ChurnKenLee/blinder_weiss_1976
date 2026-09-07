@@ -46,7 +46,10 @@ def _retirement_setup():
     return params, config
 
 
-def test_adaptive_neighbors_propagate_a_feasible_retirement_policy_across_the_batch() -> None:
+@pytest.mark.parametrize("adaptive_tolerance", [0.0, 1e-13])
+def test_adaptive_neighbors_propagate_a_feasible_retirement_policy_across_the_batch(
+    adaptive_tolerance: float,
+) -> None:
     params, base = _retirement_setup()
     asset_grid_np, log_grid_np = bellman_state_grids(base)
     asset_grid, log_grid = jnp.asarray(asset_grid_np), jnp.asarray(log_grid_np)
@@ -59,7 +62,7 @@ def test_adaptive_neighbors_propagate_a_feasible_retirement_policy_across_the_ba
     incumbent = jnp.zeros((1, base.human_capital_nodes, 3))
     incumbent = incumbent.at[..., 0].set(1.4).at[0, 0, 0].set(1.0)
     results = []
-    for sweeps, tolerance in ((2, None), (16, None), (64, 1e-13)):
+    for sweeps, tolerance in ((2, None), (16, None), (64, adaptive_tolerance)):
         config = replace(base, neighbor_policy_sweeps=sweeps, neighbor_policy_tolerance=tolerance)
         optimizer = _make_control_optimizer(
             params, config, asset_grid, log_grid, neighbor_shape=(1, base.human_capital_nodes)
@@ -97,6 +100,52 @@ def test_adaptive_neighbors_propagate_a_feasible_retirement_policy_across_the_ba
         # Independent within-period check: for h=q=r=0, A(s)=4-c*s exactly.
         checkpoint_assets = 4.0 - consumption[..., None] * np.linspace(0.0, 1.0, 33)
         assert np.min(checkpoint_assets) >= base.asset_minimum
+
+
+def test_exact_neighbor_stopping_propagates_improvements_below_relative_tolerance() -> None:
+    params, base = _retirement_setup()
+    asset_grid_np, log_grid_np = bellman_state_grids(base)
+    asset_grid, log_grid = jnp.asarray(asset_grid_np), jnp.asarray(log_grid_np)
+    continuation = jnp.broadcast_to(
+        asset_grid[:, None], (base.asset_nodes, base.human_capital_nodes)
+    )
+    states = jnp.stack((jnp.full((1, base.human_capital_nodes), 4.0), log_grid[None, :]), axis=-1)
+    # The exact maximizer c=1 improves the other incumbents by about 1e-12:
+    # larger than roundoff, but smaller than 1e-13 * abs(V) for V near -98.
+    # A tolerance-based stop can leave this candidate only partly propagated,
+    # introducing real nodal declines into an exactly flat continuation.
+    inferior_consumption = 1.0 + 1e-6
+    incumbent = jnp.zeros((1, base.human_capital_nodes, 3))
+    incumbent = incumbent.at[..., 0].set(inferior_consumption).at[0, 0, 0].set(1.0)
+    results = []
+    for tolerance in (1e-13, 0.0):
+        config = replace(base, neighbor_policy_sweeps=64, neighbor_policy_tolerance=tolerance)
+        optimizer = _make_control_optimizer(
+            params, config, asset_grid, log_grid, neighbor_shape=(1, base.human_capital_nodes)
+        )
+        results.append(
+            jax.device_get(jax.jit(optimizer)(states, continuation, incumbent, True, False))
+        )
+
+    tolerant, exact = results
+    np.testing.assert_allclose(tolerant[1][0, :2], 1.0, rtol=0.0, atol=1e-14)
+    np.testing.assert_allclose(
+        tolerant[1][0, 2:], inferior_consumption, rtol=0.0, atol=1e-14
+    )
+    gap = float(exact[0][0, -1] - tolerant[0][0, -1])
+    assert 1e-13 < gap < 1e-13 * abs(tolerant[0][0, -1])
+    assert np.min(np.diff(tolerant[0], axis=1)) < -1e-13
+    np.testing.assert_allclose(exact[1], 1.0, rtol=0.0, atol=1e-14)
+    np.testing.assert_array_equal(exact[0], np.full_like(exact[0], exact[0][0, 0]))
+    for value, consumption, hours, training in results:
+        assert all(np.all(np.isfinite(array)) for array in (value, consumption, hours, training))
+        np.testing.assert_array_equal(hours, np.zeros_like(hours))
+        np.testing.assert_array_equal(training, np.zeros_like(training))
+        expected_value = -1.0 / consumption - params.leisure_weight + (4.0 - consumption)
+        np.testing.assert_allclose(value, expected_value, rtol=0.0, atol=3e-14)
+        assert np.all(consumption >= base.consumption_floor)
+        assert np.all(4.0 - consumption >= base.asset_minimum)
+        assert np.all(4.0 - consumption <= base.asset_maximum)
 
 
 @pytest.mark.parametrize("tolerance", [-1.0, np.nan, np.inf, -np.inf])
