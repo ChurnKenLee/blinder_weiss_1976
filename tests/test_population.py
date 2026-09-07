@@ -3,10 +3,17 @@ from __future__ import annotations
 from dataclasses import replace
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
-from blinder_weiss import BellmanConfig, benchmark_params, simulate_policy, solve_bellman
-from blinder_weiss import bellman, population
+from blinder_weiss import (
+    BellmanConfig,
+    bellman,
+    benchmark_params,
+    population,
+    simulate_policy,
+    solve_bellman,
+)
 from blinder_weiss.bellman import constant_control_transition
 from blinder_weiss.model import effective_earnings_share
 from blinder_weiss.population import cohort_moments, simulate_cohort
@@ -63,7 +70,10 @@ def test_cohort_matches_independent_greedy_lifecycles(cohort_solution) -> None:
     for duration in np.linspace(step / 12, step, 12):
         checkpoint_states = np.asarray(
             constant_control_transition(
-                cohort.states[:-1], cohort.controls, cohort_solution.params, float(duration)
+                jnp.asarray(cohort.states[:-1]),
+                jnp.asarray(cohort.controls),
+                cohort_solution.params,
+                float(duration),
             )
         )
         assert np.min(checkpoint_states[..., 0]) >= cohort_solution.config.asset_minimum - 1e-8
@@ -147,13 +157,15 @@ def test_weighted_profiles_and_period_start_earnings(cohort_solution) -> None:
         values = getattr(cohort, name)
         expected = 0.25 * values[:, 0] + 0.75 * values[:, 1]
         np.testing.assert_allclose(getattr(moments, name), expected)
-    expected_participation = (
-        0.25 * (cohort.hours[:, 0] > threshold) + 0.75 * (cohort.hours[:, 1] > threshold)
+    expected_participation = 0.25 * (cohort.hours[:, 0] > threshold) + 0.75 * (
+        cohort.hours[:, 1] > threshold
     )
     np.testing.assert_allclose(moments.participation, expected_participation)
     assert moments.participation[0] in (0.0, 0.75)
     expected_earnings = (
-        np.asarray(effective_earnings_share(cohort.hours, cohort.training_time))
+        np.asarray(
+            effective_earnings_share(jnp.asarray(cohort.hours), jnp.asarray(cohort.training_time))
+        )
         * cohort.human_capital[:-1]
     )
     np.testing.assert_allclose(cohort.earnings, expected_earnings)

@@ -20,9 +20,9 @@ from jax import Array
 from numpy.typing import ArrayLike
 
 from .bellman import (
+    _DOMAIN_TOLERANCE,
     BellmanConfig,
     BellmanSolution,
-    _DOMAIN_TOLERANCE,
     _cached_greedy_kernels,
     maximum_feasible_consumption,
 )
