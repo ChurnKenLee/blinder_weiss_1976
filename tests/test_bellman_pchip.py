@@ -36,7 +36,8 @@ def test_pchip_recursion_queries_and_diagnostics_use_same_value_representation()
     )
 
 
-def test_terminal_analytic_bellman_step_is_independent_of_interpolation():
+@pytest.mark.parametrize("mode", ["pchip", "monotone_bicubic"])
+def test_terminal_analytic_bellman_step_is_independent_of_interpolation(mode):
     cfg = BellmanConfig(
         periods=1,
         asset_nodes=5,
@@ -49,7 +50,7 @@ def test_terminal_analytic_bellman_step_is_independent_of_interpolation():
     )
     p = benchmark_params(horizon=1.0)
     linear = solve_bellman(p, cfg)
-    cubic = solve_bellman(p, replace(cfg, value_interpolation="pchip"))
+    cubic = solve_bellman(p, replace(cfg, value_interpolation=mode))
     np.testing.assert_allclose(cubic.values, linear.values, rtol=1e-12, atol=1e-12)
     np.testing.assert_allclose(
         cubic.consumption_policy, linear.consumption_policy, rtol=1e-12, atol=1e-12
@@ -59,3 +60,23 @@ def test_terminal_analytic_bellman_step_is_independent_of_interpolation():
 def test_exact_bilinear_consumption_polish_cannot_silently_run_against_pchip():
     with pytest.raises(ValueError, match="requires bilinear"):
         solve_bellman(config=BellmanConfig(value_interpolation="pchip", consumption_polish=True))
+
+
+def test_monotone_bicubic_full_recursion_keeps_values_increasing():
+    cfg = BellmanConfig(
+        periods=3,
+        asset_nodes=7,
+        human_capital_nodes=5,
+        hours_nodes=5,
+        investment_nodes=5,
+        consumption_nodes=5,
+        refinement_steps=4,
+        value_interpolation="monotone_bicubic",
+        compute_platform="cpu",
+    )
+    solution = solve_bellman(benchmark_params(horizon=3.0), cfg)
+    diagnostics = diagnose_bellman(solution)
+    assert diagnostics.accepted_node_solution
+    assert diagnostics.maximum_node_bellman_residual < 1e-9
+    assert diagnostics.maximum_value_monotonicity_violation < 1e-8
+    assert diagnostics.simulation_stayed_in_domain
