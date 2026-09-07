@@ -30,6 +30,7 @@ def main() -> None:
     parser.add_argument('--batch-size', type=int, default=256)
     parser.add_argument('--repeats', type=int, default=3)
     parser.add_argument('--polish-consumption', action='store_true')
+    parser.add_argument('--interpolation', choices=['bilinear', 'pchip'], default='bilinear')
     parser.add_argument('--diagnostics', action='store_true')
     args = parser.parse_args()
     if args.repeats < 1:
@@ -40,6 +41,7 @@ def main() -> None:
         hours_nodes=args.control_nodes, investment_nodes=args.control_nodes,
         consumption_nodes=args.consumption_nodes, refinement_steps=args.refinement_steps,
         control_batch_size=args.batch_size,
+        value_interpolation=args.interpolation,
         **({'consumption_polish': True} if args.polish_consumption else {}),
     )
     args.output.mkdir(parents=True, exist_ok=True)

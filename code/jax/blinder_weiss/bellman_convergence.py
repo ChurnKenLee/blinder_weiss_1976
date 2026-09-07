@@ -12,7 +12,7 @@ from .bellman import (
     BellmanDiagnostics,
     BellmanSolution,
     _exprel,
-    _interpolate_jax,
+    _interpolate_value_jax,
     bellman_state_grids,
     constant_control_transition,
     diagnose_bellman,
@@ -324,12 +324,13 @@ def _policy_value(
             solution.params,
         )
     else:
-        continuation = _interpolate_jax(
+        continuation = _interpolate_value_jax(
             jnp.asarray(solution.values[period + 1]),
             jnp.asarray(solution.asset_grid),
             jnp.asarray(solution.log_human_capital_grid),
             next_states[..., 0],
             next_states[..., 1],
+            solution.config,
         )
     objective = (
         step

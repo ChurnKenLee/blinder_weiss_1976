@@ -27,6 +27,7 @@ from jax import Array
 from jax.typing import ArrayLike
 
 from .bellman_consumption import optimize_conditional_consumption
+from .bellman_interpolation import pchip_slopes, tensor_pchip_interpolate
 from .model import (
     ModelParams,
     benchmark_params,
@@ -80,6 +81,7 @@ class BellmanConfig:
     control_batch_size: int = 256
     neighbor_policy_sweeps: int = 2
     consumption_polish: bool = False
+    value_interpolation: Literal["bilinear", "pchip"] = "bilinear"
     compute_platform: Literal["auto", "cpu", "gpu"] = "auto"
     device_index: int = 0
 
@@ -123,6 +125,7 @@ class BellmanSolution:
                 self.log_human_capital_grid,
                 self.params.initial_assets,
                 np.log(self.params.initial_human_capital),
+                config=self.config,
             )
         )
 
@@ -247,6 +250,10 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
         raise ValueError("neighbor_policy_sweeps cannot be negative")
     if config.compute_platform not in {"auto", "cpu", "gpu"}:
         raise ValueError("compute_platform must be 'auto', 'cpu', or 'gpu'")
+    if config.value_interpolation not in {"bilinear", "pchip"}:
+        raise ValueError("value_interpolation must be 'bilinear' or 'pchip'")
+    if config.value_interpolation == "pchip" and config.consumption_polish:
+        raise ValueError("exact consumption polish requires bilinear continuation")
     if config.device_index < 0:
         raise ValueError("device_index cannot be negative")
     if config.consumption_polish and not (
@@ -457,13 +464,45 @@ def _interpolate_jax(
     return lower_value + human_capital_weight * (upper_value - lower_value)
 
 
+def _interpolate_value_jax(
+    values: Array,
+    asset_grid: Array,
+    log_human_capital_grid: Array,
+    assets: Array,
+    log_human_capital: Array,
+    config: BellmanConfig,
+    *,
+    asset_derivatives: Array | None = None,
+) -> Array:
+    """Use the same continuation representation in solving and validation."""
+
+    if config.value_interpolation == "pchip":
+        return tensor_pchip_interpolate(
+            values, asset_grid, log_human_capital_grid, assets, log_human_capital,
+            asset_derivatives=asset_derivatives,
+            asset_grid_curvature=config.asset_grid_curvature,
+            uniform_log_grid=True,
+        )
+    return _interpolate_jax(
+        values, asset_grid, log_human_capital_grid, assets, log_human_capital,
+        asset_grid_curvature=config.asset_grid_curvature,
+    )
+
+
 def _interpolate_numpy(
     values: np.ndarray,
     asset_grid: np.ndarray,
     log_human_capital_grid: np.ndarray,
     assets: float | np.ndarray,
     log_human_capital: float | np.ndarray,
+    *,
+    config: BellmanConfig | None = None,
 ) -> np.ndarray:
+    if config is not None:
+        return np.asarray(_interpolate_value_jax(
+            jnp.asarray(values), jnp.asarray(asset_grid), jnp.asarray(log_human_capital_grid),
+            jnp.asarray(assets), jnp.asarray(log_human_capital), config,
+        ))
     return np.asarray(
         _interpolate_jax(
             jnp.asarray(values),
@@ -523,13 +562,17 @@ def _make_control_optimizer(
         next_states: Array,
         continuation_is_terminal: ArrayLike,
     ) -> Array:
-        interpolated = _interpolate_jax(
-            continuation_values,
+        # PCHIP derivative tables are prepared once per age by optimize_states.
+        values = continuation_values[0] if config.value_interpolation == "pchip" else continuation_values
+        derivatives = continuation_values[1] if config.value_interpolation == "pchip" else None
+        interpolated = _interpolate_value_jax(
+            values,
             asset_grid,
             log_human_capital_grid,
             next_states[..., 0],
             next_states[..., 1],
-            asset_grid_curvature=config.asset_grid_curvature,
+            config,
+            asset_derivatives=derivatives,
         )
         terminal = bequest_utility(
             jnp.maximum(next_states[..., 0], asset_minimum),
@@ -953,6 +996,10 @@ def _make_control_optimizer(
         incumbent_is_valid: ArrayLike = True,
         continuation_is_terminal: ArrayLike = False,
     ) -> tuple[Array, Array, Array, Array]:
+        if config.value_interpolation == "pchip":
+            continuation_values = jnp.stack(
+                (continuation_values, pchip_slopes(asset_grid, continuation_values)), axis=0
+            )
         state_shape = states.shape[:-1]
         flat_states = states.reshape((-1, 2))
         state_count = flat_states.shape[0]
@@ -1387,6 +1434,7 @@ def value_at(
         solution.log_human_capital_grid,
         assets,
         np.log(human_capital_array),
+        config=solution.config,
     )
 
 
@@ -1739,6 +1787,7 @@ def simulate_policy(
             solution.log_human_capital_grid,
             initial_assets,
             np.log(initial_human_capital),
+            config=solution.config,
         )
     )
     return BellmanSimulation(
@@ -1797,12 +1846,13 @@ def diagnose_bellman(
                 params,
             )
         else:
-            continuation = _interpolate_jax(
+            continuation = _interpolate_value_jax(
                 jnp.asarray(solution.values[period + 1]),
                 jnp.asarray(solution.asset_grid),
                 jnp.asarray(solution.log_human_capital_grid),
                 next_states[..., 0],
                 next_states[..., 1],
+                config,
             )
         policy_value = (
             flow_discount * flow_utility(consumption, hours, params) + beta * continuation
