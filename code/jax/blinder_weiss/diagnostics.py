@@ -27,7 +27,6 @@ from .transcription import (
     training_time_slack,
 )
 
-
 _KKT_STATIONARITY_TOLERANCE = 1e-4
 
 
