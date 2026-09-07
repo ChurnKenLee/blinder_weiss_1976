@@ -54,7 +54,7 @@ def test_conditional_consumption_matches_global_piecewise_reference() -> None:
         lower = max(floor, (zero_consumption_state[0] - asset_grid[-1]) / consumption_factor)
         upper = min(cap, (zero_consumption_state[0] - asset_grid[0]) / consumption_factor)
 
-        def objective(candidate):
+        def objective(candidate, zero_consumption_state=zero_consumption_state, index=index):
             next_assets = zero_consumption_state[0] - consumption_factor * candidate
             next_value = float(_interpolate_numpy(
                 continuation, asset_grid, log_grid, next_assets, zero_consumption_state[1]
@@ -78,7 +78,9 @@ def test_conditional_consumption_matches_global_piecewise_reference() -> None:
             )
             candidate_values.append(-result.fun)
         assert float(values[index]) == pytest.approx(max(candidate_values), abs=2e-10)
-        assert float(values[index]) == pytest.approx(objective(float(consumption[index])), abs=2e-10)
+        assert float(values[index]) == pytest.approx(
+            objective(float(consumption[index])), abs=2e-10
+        )
         assert lower - 1e-10 <= float(consumption[index]) <= upper + 1e-10
 
 
