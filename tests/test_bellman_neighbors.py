@@ -129,9 +129,7 @@ def test_exact_neighbor_stopping_propagates_improvements_below_relative_toleranc
 
     tolerant, exact = results
     np.testing.assert_allclose(tolerant[1][0, :2], 1.0, rtol=0.0, atol=1e-14)
-    np.testing.assert_allclose(
-        tolerant[1][0, 2:], inferior_consumption, rtol=0.0, atol=1e-14
-    )
+    np.testing.assert_allclose(tolerant[1][0, 2:], inferior_consumption, rtol=0.0, atol=1e-14)
     gap = float(exact[0][0, -1] - tolerant[0][0, -1])
     assert 1e-13 < gap < 1e-13 * abs(tolerant[0][0, -1])
     assert np.min(np.diff(tolerant[0], axis=1)) < -1e-13
