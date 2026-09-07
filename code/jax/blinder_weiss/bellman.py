@@ -26,6 +26,7 @@ import numpy as np
 from jax import Array
 from jax.typing import ArrayLike
 
+from .bellman_consumption import optimize_conditional_consumption
 from .model import (
     ModelParams,
     benchmark_params,
@@ -78,6 +79,7 @@ class BellmanConfig:
     refinement_starts: int = 1
     control_batch_size: int = 256
     neighbor_policy_sweeps: int = 2
+    consumption_polish: bool = False
     compute_platform: Literal["auto", "cpu", "gpu"] = "auto"
     device_index: int = 0
 
@@ -247,6 +249,13 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
         raise ValueError("compute_platform must be 'auto', 'cpu', or 'gpu'")
     if config.device_index < 0:
         raise ValueError("device_index cannot be negative")
+    if config.consumption_polish and not (
+        params.consumption_weight > 0.0 and params.bequest_weight > 0.0
+        and params.consumption_power < 1.0 and params.bequest_power < 1.0
+        and params.consumption_power != 0.0 and params.bequest_power != 0.0
+    ):
+        raise ValueError("consumption polish requires positive weights and concave nonzero powers")
+
 
 
 def _select_compute_device(config: BellmanConfig) -> Any:
@@ -1137,6 +1146,16 @@ def _make_control_optimizer(
                 config.neighbor_policy_sweeps,
                 neighbor_sweep,
                 initial_carry,
+            )
+        if config.consumption_polish:
+            final_consumption, final_values = optimize_conditional_consumption(
+                flat_states, best_controls[:, 0], final_training,
+                continuation_values, asset_grid, log_human_capital_grid, params,
+                step=step, asset_minimum=asset_minimum,
+                consumption_floor=config.consumption_floor,
+                path_checkpoints=config.path_checkpoints,
+                continuation_is_terminal=continuation_is_terminal,
+                incumbent_consumption=final_consumption,
             )
         return (
             final_values.reshape(state_shape),
