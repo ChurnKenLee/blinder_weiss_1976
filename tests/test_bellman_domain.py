@@ -30,6 +30,7 @@ def domain_solution():
     )
 
 
+@pytest.mark.parametrize("policy_method", ["greedy", "interpolate"])
 @pytest.mark.parametrize("axis", [0, 1])
 @pytest.mark.parametrize("side", ["lower", "upper"])
 @pytest.mark.parametrize("roundoff_only", [True, False])
@@ -39,6 +40,7 @@ def test_simulation_domain_flag_distinguishes_roundoff_from_real_exit(
     axis: int,
     side: str,
     roundoff_only: bool,
+    policy_method: str,
 ) -> None:
     solution = domain_solution
     grids = (solution.asset_grid, solution.log_human_capital_grid)
@@ -61,5 +63,6 @@ def test_simulation_domain_flag_distinguishes_roundoff_from_real_exit(
         "_cached_greedy_kernels",
         lambda *_: (None, rollout, jax.devices("cpu")[0]),
     )
-    simulation = bellman.simulate_policy(solution)
+    monkeypatch.setattr(bellman, "constant_control_transition", lambda *_: states[-1])
+    simulation = bellman.simulate_policy(solution, policy_method=policy_method)
     assert simulation.stayed_in_domain is roundoff_only
