@@ -378,12 +378,27 @@ def maximum_feasible_consumption(
     return jnp.min(checkpoint_bounds, axis=-1)
 
 
+def _regular_grid_index(grid: Array, points: Array, curvature: float) -> Array:
+    """Locate generated grid cells in O(1), correcting roundoff at nodes."""
+
+    unit = jnp.clip((points - grid[0]) / (grid[-1] - grid[0]), 0.0, 1.0)
+    coordinate = unit if curvature == 1.0 else unit ** (1.0 / curvature)
+    index = jnp.clip(jnp.floor(coordinate * (grid.size - 1)).astype(jnp.int32),
+                     0, grid.size - 2)
+    # Inverting a curved grid can round to either side of an exact node.
+    # These comparisons recover searchsorted(side="right") conventions.
+    index = jnp.where(points < grid[index], jnp.maximum(index - 1, 0), index)
+    return jnp.where(points >= grid[index + 1], jnp.minimum(index + 1, grid.size - 2), index)
+
+
 def _interpolate_jax(
     values: Array,
     asset_grid: Array,
     log_human_capital_grid: Array,
     assets: Array,
     log_human_capital: Array,
+    *,
+    asset_grid_curvature: float | None = None,
 ) -> Array:
     """Monotone bilinear interpolation on a possibly curved asset grid."""
 
@@ -393,21 +408,27 @@ def _interpolate_jax(
         log_human_capital_grid[0],
         log_human_capital_grid[-1],
     )
-    asset_index = jnp.clip(
-        jnp.searchsorted(asset_grid, bounded_assets, side="right") - 1,
-        0,
-        asset_grid.size - 2,
-    )
-    human_capital_index = jnp.clip(
-        jnp.searchsorted(
-            log_human_capital_grid,
-            bounded_log_human_capital,
-            side="right",
+    if asset_grid_curvature is None:
+        asset_index = jnp.clip(
+            jnp.searchsorted(asset_grid, bounded_assets, side="right") - 1,
+            0,
+            asset_grid.size - 2,
         )
-        - 1,
-        0,
-        log_human_capital_grid.size - 2,
-    )
+        human_capital_index = jnp.clip(
+            jnp.searchsorted(
+                log_human_capital_grid,
+                bounded_log_human_capital,
+                side="right",
+            )
+            - 1,
+            0,
+            log_human_capital_grid.size - 2,
+        )
+    else:
+        asset_index = _regular_grid_index(asset_grid, bounded_assets, asset_grid_curvature)
+        human_capital_index = _regular_grid_index(
+            log_human_capital_grid, bounded_log_human_capital, 1.0
+        )
     asset_lower = asset_grid[asset_index]
     asset_upper = asset_grid[asset_index + 1]
     human_capital_lower = log_human_capital_grid[human_capital_index]
@@ -498,6 +519,7 @@ def _make_control_optimizer(
             log_human_capital_grid,
             next_states[..., 0],
             next_states[..., 1],
+            asset_grid_curvature=config.asset_grid_curvature,
         )
         terminal = bequest_utility(
             jnp.maximum(next_states[..., 0], asset_minimum),
