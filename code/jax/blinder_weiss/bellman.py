@@ -54,7 +54,10 @@ class BellmanConfig:
     ``compute_platform="auto"`` uses a CUDA device when JAX can see one and
     otherwise uses CPU. Select ``"gpu"`` to require CUDA rather than allowing
     a silent CPU fallback; ``device_index`` selects among devices on the
-    chosen platform.
+    chosen platform. ``value_interpolation="pchip"`` enables experimental
+    sequential cubic continuation; it is smoother but does not guarantee
+    coordinate monotonicity. ``consumption_polish`` enables exact conditional
+    consumption search for the default bilinear representation only.
     """
 
     periods: int = 70

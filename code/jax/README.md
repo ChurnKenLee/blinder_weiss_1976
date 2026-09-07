@@ -1,5 +1,9 @@
 # JAX lifecycle solvers
 
+For measured GPU timings, the calibration API, and the experimental smooth
+continuation mode, see [PERFORMANCE.md](PERFORMANCE.md). It records both the
+verified improvements and the remaining policy-surface acceptance checks.
+
 For a terse description of the numerical workflow, see
 [SOLUTION_PROCEDURE.md](SOLUTION_PROCEDURE.md).
 For a derivation of the transcription, optimization theory, JAX autodiff, and
