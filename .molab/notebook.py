@@ -1,6 +1,7 @@
 # /// script
 # requires-python = ">=3.13"
 # dependencies = [
+#     "basedpyright>=1.39.9",
 #     "diffrax>=0.7.2",
 # ]
 # ///
