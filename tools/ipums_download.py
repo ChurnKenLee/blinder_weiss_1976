@@ -113,7 +113,8 @@ def api_key():
         if key:
             return key
     raise RuntimeError(
-        "No IPUMS API key: configure IPUMS_API_KEY privately or /tmp/ipums_api_key (mode 600), with USA and ATUS registration"
+        "No IPUMS API key: configure IPUMS_API_KEY privately or "
+        "/tmp/ipums_api_key (mode 600), with USA and ATUS registration"
     )
 
 
