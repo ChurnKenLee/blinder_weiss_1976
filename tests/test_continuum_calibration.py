@@ -446,6 +446,26 @@ def test_acceptance_requires_distinct_resolutions_same_law_and_stable_fit():
     assert not compare_calibration_resolutions(
         evaluation(coarse), evaluation(reference), targets, **unstable
     )["passed"]
+    nominal_change = replace(
+        reference,
+        simulation=SimpleNamespace(
+            solution=SimpleNamespace(
+                config=replace(config, compute_platform="gpu", path_checkpoints=27)
+            )
+        ),
+    )
+    assert not compare_calibration_resolutions(
+        evaluation(nominal_change), evaluation(reference), targets, **kwargs
+    )["criteria"]["distinct_numerical_resolutions"]
+    infeasible = replace(
+        coarse,
+        diagnostics={**coarse.diagnostics, "maximum_full_period_floor_violation": 3e-5},
+    )
+    failed = compare_calibration_resolutions(
+        evaluation(infeasible), evaluation(reference), targets, **kwargs
+    )
+    assert not failed["passed"]
+    assert not failed["criteria"]["both_full_period_paths_feasible"]
 
 
 def test_scalar_fit_keeps_incumbent_and_preserves_search_termination(monkeypatch):

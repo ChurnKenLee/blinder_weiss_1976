@@ -111,8 +111,11 @@ use the same method. Exact endpoint atom classification must call
 
 `BellmanSimulation.minimum_assets` now audits the whole interval, including
 legacy simulations. `BellmanDiagnostics.minimum_node_path_assets` audits all
-stored node policies. Continuous-mode acceptance checks the full-period
-minimum; legacy-mode replay can expose between-checkpoint dips without
+stored node policies. `full_period_feasible` reports that analytical check
+independently of the recorded solver mode. `accepted_node_solution` retains
+the recorded mode's meaning: continuous-mode acceptance checks the full-period
+minimum, while legacy checkpoint acceptance can be true with
+`full_period_feasible=False`. Legacy replay therefore exposes dips without
 silently changing historical controls.
 
 Validation includes the earlier missed dip, independent positive-integrand

@@ -196,6 +196,7 @@ class BellmanDiagnostics:
     maximum_node_bellman_residual: float
     minimum_consumption_capacity_slack: float
     minimum_node_path_assets: float
+    full_period_feasible: bool
     minimum_training_time: float
     minimum_training_slack: float
     minimum_hours: float
@@ -213,6 +214,7 @@ class BellmanDiagnostics:
             "maximum_node_bellman_residual": self.maximum_node_bellman_residual,
             "minimum_consumption_capacity_slack": self.minimum_consumption_capacity_slack,
             "minimum_node_path_assets": self.minimum_node_path_assets,
+            "full_period_feasible": self.full_period_feasible,
             "minimum_training_time": self.minimum_training_time,
             "minimum_training_slack": self.minimum_training_slack,
             "minimum_hours": self.minimum_hours,
@@ -2139,6 +2141,7 @@ def diagnose_bellman(
     maximum_bellman_residual = 0.0
     minimum_capacity_slack = np.inf
     minimum_node_path_assets = np.inf
+    full_period_feasible = True
     next_states_inside_domain = True
 
     for period in range(config.periods):
@@ -2147,12 +2150,12 @@ def diagnose_bellman(
         training_time = jnp.asarray(solution.training_time_policy[period])
         controls = jnp.stack((consumption, hours, training_time), axis=-1)
         next_states = constant_control_transition(state_nodes, controls, params, step)
-        minimum_node_path_assets = min(
-            minimum_node_path_assets,
-            float(np.min(np.asarray(
-                minimum_assets_during_step(state_nodes, controls, params, step)
-            ))),
+        path_minima = np.asarray(minimum_assets_during_step(state_nodes, controls, params, step))
+        full_period_feasible = full_period_feasible and bool(
+            np.all(np.isfinite(path_minima))
+            and np.all(path_minima >= config.asset_minimum - tolerance)
         )
+        minimum_node_path_assets = min(minimum_node_path_assets, float(np.min(path_minima)))
         if period == config.periods - 1:
             continuation = bequest_utility(
                 jnp.maximum(next_states[..., 0], solution.asset_grid[0]),
@@ -2226,6 +2229,7 @@ def diagnose_bellman(
         maximum_node_bellman_residual=maximum_bellman_residual,
         minimum_consumption_capacity_slack=minimum_capacity_slack,
         minimum_node_path_assets=minimum_node_path_assets,
+        full_period_feasible=bool(full_period_feasible),
         minimum_training_time=minimum_training_time,
         minimum_training_slack=minimum_training_slack,
         minimum_hours=minimum_hours,
