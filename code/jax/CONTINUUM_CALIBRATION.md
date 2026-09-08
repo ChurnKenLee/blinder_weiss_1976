@@ -244,10 +244,21 @@ First Bellman solve wall time is 20.20 s, with a separately observed 7.56 s
 backend-compile event; repeated solves take 9.38 s. Complete warm solve-and-loss
 calls take 14.47–14.48 s for quadrature64, versus 19.88 s for transport121 and
 12.76–12.79 s for the 256-person cohort. Parameter perturbations of ±2% in
-leisure weight reuse compilation at fixed shape. The one-parameter quadrature
-fit terminates successfully after 12 evaluations at leisure weight **1.000113**
-(known value 1.0, absolute error 0.000113, standardized loss 4.08e-6).
-This is successful synthetic recovery, not an empirical parameter estimate.
+leisure weight reuse compilation at fixed shape. The historical one-parameter
+quadrature fit terminated successfully after 12 evaluations at leisure weight
+**1.000113** (known value 1.0, absolute error 0.000113, standardized loss 4.08e-6).
+That recorded result predates the incumbent safeguard: the earlier bounded
+search did not first evaluate the supplied parameter. It is a historical
+synthetic fitting result, not an empirical parameter estimate.
+
+The current fitter evaluates the supplied parameter first and retains the best
+actually evaluated candidate. With targets generated from the same policy
+configuration, initial law and reference quadrature, the supplied value 1.0
+already matches the target at zero loss up to roundoff. A current replay
+therefore retains that value rather than reproducing the historical 1.000113
+candidate. Retaining a supplied known value does not demonstrate parameter
+recovery; the separate resolution-stability exercise tests numerical changes
+against one fixed target.
 
 ## Boundary accuracy in the lifecycle benchmark
 
@@ -299,8 +310,14 @@ PYTHONPATH=code/jax python tools/benchmark_continuum.py \
   --asset-feasibility checkpoints \
   --initial-law-report output/solver_benchmarks/continuum_gpu/report.json \
   --quadrature 8 16 32 64 --distribution 31 61 121 \
-  --fit-evaluations 30 --output output/solver_benchmarks/continuum_gpu
+  --fit-evaluations 30 --output output/solver_benchmarks/continuum_gpu_replay
 ```
+
+This replays the historical numerical configuration and initial law using the
+current source. The separate output directory preserves the recorded historical
+artifacts. The current incumbent-preserving fitting trace and evaluation count
+will differ from the historical result above; this command does not reconstruct
+the old optimizer implementation.
 
 A small CPU smoke run uses `--platform cpu` and omits `--config-report`. Saved
 `report.json` contains settings, source checksums, diagnostic profiles, errors,
@@ -312,9 +329,10 @@ The synthetic loss matches consumption, hours, training, earnings and
 participation at seven ages. Its scales (0.02 for time fractions/participation,
 0.1 for consumption/earnings) are chosen numerical tolerances, not estimated
 survey standard errors. The fit varies leisure weight on `[0.9,1.1]`, with known
-synthetic value 1.0 and parameter tolerance 0.001. This exercise tests recovery
-within the same numerical model. Identification, empirical mapping and
-numerical bias under joint refinement remain separate questions.
+synthetic value 1.0 and parameter tolerance 0.001. This exercise tests the fitting
+pipeline within the same numerical model; its retained initial value is not a
+recovery test. Identification, empirical mapping and numerical bias under joint
+refinement remain separate questions.
 
 For custom targets, the minimal sequence is:
 
