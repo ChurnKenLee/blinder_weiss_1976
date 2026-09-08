@@ -58,6 +58,12 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--platform", choices=["cpu", "gpu"], default="cpu")
     parser.add_argument("--config-report", type=Path)
+    parser.add_argument(
+        "--resolution-config-reports",
+        type=Path,
+        nargs="+",
+        help="One saved config per period count; permits joint time/state-grid refinement",
+    )
     parser.add_argument("--periods", type=int, nargs="+")
     parser.add_argument("--orders", type=int, nargs="+", default=[4, 8, 16])
     parser.add_argument("--parameter", default="leisure_weight")
@@ -75,6 +81,28 @@ def main():
     parser.add_argument("--fit-tolerance", type=float, default=0.002)
     parser.add_argument("--fit-initial-law", action="store_true")
     args = parser.parse_args()
+    specified_configs = {}
+    if args.resolution_config_reports:
+        if args.config_report is not None:
+            parser.error("use config-report or resolution-config-reports, not both")
+        specifications = [json.loads(path.read_text()) for path in args.resolution_config_reports]
+        for path, specification in zip(args.resolution_config_reports, specifications, strict=True):
+            count = specification["config"]["periods"]
+            if count in specified_configs:
+                parser.error("resolution-config-reports must have distinct period counts")
+            if specification["params"] != specifications[0]["params"]:
+                parser.error("resolution configurations must share structural parameters")
+            specified_configs[count] = BellmanConfig(
+                **{**specification["config"], "compute_platform": args.platform}
+            )
+        if args.periods is not None and set(args.periods) != set(specified_configs):
+            parser.error("periods must match supplied resolution-config-reports")
+        args.periods = sorted(specified_configs)
+        # Select by actual count rather than the input order of report paths.
+        args.config_report = max(
+            args.resolution_config_reports,
+            key=lambda path: json.loads(path.read_text())["config"]["periods"],
+        )
     if args.periods is None:
         starting_periods = (
             json.loads(args.config_report.read_text())["config"]["periods"]
@@ -111,6 +139,12 @@ def main():
             compute_platform=args.platform,
         )
         params = benchmark_params(horizon=4.0)
+    configs = {
+        count: specified_configs.get(count, replace(base_config, periods=count))
+        for count in periods
+    }
+    if any(config.asset_minimum != base_config.asset_minimum for config in configs.values()):
+        parser.error("this initial floor-mixture comparison requires the same numerical floor")
     known_parameter = float(getattr(params, args.parameter))
     if not args.bounds[0] < known_parameter < args.bounds[1]:
         parser.error("synthetic known parameter must lie strictly inside fitting bounds")
@@ -128,6 +162,12 @@ def main():
         "empirical_calibration": False,
         "continuum_convergence_certified": False,
         "config": asdict(base_config),
+        "resolution_configs": {str(count): asdict(config) for count, config in configs.items()},
+        "resolution_config_sources": (
+            [str(path) for path in args.resolution_config_reports]
+            if args.resolution_config_reports
+            else None
+        ),
         "params": params._asdict(),
         "initial_law": asdict(law),
         "parameter": args.parameter,
@@ -160,7 +200,7 @@ def main():
     for count in periods:
         print(json.dumps({"phase": "policy", "periods": count}), flush=True)
         solutions[count], timing = timer.measure(
-            lambda count=count: solve_bellman(params, replace(base_config, periods=count))
+            lambda count=count: solve_bellman(params, configs[count])
         )
         report.setdefault("policy_timings", {})[str(count)] = timing
     reference_solution = solutions[periods[-1]]
@@ -252,6 +292,8 @@ def main():
             report["resolutions"][label] = {
                 "periods": count,
                 "quadrature_order": order,
+                "asset_nodes": solution.config.asset_nodes,
+                "human_capital_nodes": solution.config.human_capital_nodes,
                 "baseline_loss_against_fixed_target": objective.loss,
                 "fitted_parameter": float(fit.x),
                 "parameter_error": abs(fit.x - known_parameter),

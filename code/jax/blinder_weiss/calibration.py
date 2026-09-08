@@ -479,6 +479,11 @@ def compare_calibration_resolutions(
         "initial_law"
     ] == fine_diagnostics.get("initial_law")
     same_params = coarse.params == reference.params
+    coarse_floor = coarse.population.simulation.solution.config.asset_minimum
+    reference_floor = reference.population.simulation.solution.config.asset_minimum
+    # A positive initial floor mixture moves physically when the numerical floor changes.
+    if same_law and coarse_diagnostics["initial_law"]["asset_floor_mass"] > 0:
+        same_law = coarse_floor == reference_floor
 
     def numerical_config(population):
         config = asdict(population.simulation.solution.config)
