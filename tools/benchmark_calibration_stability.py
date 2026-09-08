@@ -86,7 +86,7 @@ def main():
         if args.config_report is not None:
             parser.error("use config-report or resolution-config-reports, not both")
         specifications = [json.loads(path.read_text()) for path in args.resolution_config_reports]
-        for path, specification in zip(args.resolution_config_reports, specifications, strict=True):
+        for specification in specifications:
             count = specification["config"]["periods"]
             if count in specified_configs:
                 parser.error("resolution-config-reports must have distinct period counts")
