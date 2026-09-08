@@ -77,8 +77,10 @@ def test_continuous_capacity_matches_independent_integral_root(
     params = benchmark_params(interest_rate=rate)
     floor = 1e-4
     log_k = 0.13
-    args = tuple(jnp.asarray(x) for x in (assets, log_k, hours, training))
-    capacity = float(maximum_feasible_consumption(*args, params, step, floor, 4))
+    capacity = float(maximum_feasible_consumption(
+        jnp.asarray(assets), jnp.asarray(log_k), jnp.asarray(hours), jnp.asarray(training),
+        params, step, floor, 4,
+    ))
     reference = reference_capacity(assets, log_k, hours, training, params, step, floor)
     assert capacity == pytest.approx(reference, abs=3e-13, rel=3e-13)
     state = jnp.array([assets, log_k])
