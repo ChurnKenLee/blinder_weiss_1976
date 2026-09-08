@@ -115,3 +115,40 @@ minimizer times, native floor masses, and common-age profiles. Newly solved
 policies are saved under `continuous_PERIODS/`. JSON and NPZ writes use atomic
 renames. The benchmark never sets a convergence flag: additional state, control,
 quadrature, numerical-floor, and domain refinements remain separate requirements.
+
+## Joint time and asset refinement with verified path reuse
+
+The benchmark also accepts `--asset-nodes`, one count per continuous candidate.
+Time and asset counts must be nondecreasing. The first continuous candidate must
+match both baseline grids, so it isolates the feasibility change. Later candidates
+can separately increase time, assets, or both; the report names the comparison
+accordingly and lists every changed configuration field.
+
+A `-` in `--candidate-folders` requests a new solve at that position. For example,
+after the time-only comparison above:
+
+```bash
+PYTHONPATH=code/jax:tools python tools/validate_boundary_refinement.py \
+  --baseline output/solver_benchmarks/bicubic_asset121_fine \
+  --periods 140 280 280 --asset-nodes 121 121 241 \
+  --candidate-folders \
+    output/solver_benchmarks/boundary_time_refinement/continuous_140 \
+    output/solver_benchmarks/boundary_time_refinement/continuous_280 - \
+  --reuse-populations output/solver_benchmarks/boundary_time_refinement/report.json \
+  --quadrature 32 --platform gpu --warm-solves 1 --node-diagnostics \
+  --output output/solver_benchmarks/boundary_state_refinement
+```
+
+The new policy is saved as `continuous_280_asset241`. Earlier population paths
+are reused only when their policy-file SHA256, full configuration, model
+parameters, initial law, and quadrature weights match. Stored times and initial
+states are checked as well. A mismatch triggers a new population evaluation.
+The output identifies each reused source explicitly; its new population timing
+is null instead of being presented as a fresh timed rollout. Available node
+identity diagnostics are reused with the matching policy artifact. Independent
+NumPy minima and common-age summaries are still recomputed from the saved arrays.
+Source report and path-file hashes are recorded.
+
+The final candidate supplies the synthetic loss targets, so loss values from
+separate benchmark reports must not be compared unless the targets coincide.
+Reusing a population does not change its initial atom or floor-face weights.
