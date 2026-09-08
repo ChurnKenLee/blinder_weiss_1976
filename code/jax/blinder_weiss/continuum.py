@@ -209,7 +209,8 @@ def initial_quadrature(
         weights,
         component,
         "synthetic bounded correlated initial law; Gauss-Legendre probability quadrature",
-        law, nodes_per_dimension,
+        law,
+        nodes_per_dimension,
     )
 
 
@@ -263,7 +264,8 @@ def sample_initial_population(
         np.full(people, 1.0 / people),
         component,
         f"IID cohort from synthetic bounded correlated initial law; seed={seed}",
-        law, None,
+        law,
+        None,
     )
 
 
@@ -390,9 +392,13 @@ def simulate_population(
         log_human_capital=cohort.log_human_capital @ cohort.weights,
         asset_floor_mass=floor_contacts @ cohort.weights,
         near_asset_floor_mass=(
-            (floor_contacts | ((cohort.assets > floor)
-                              & (cohort.assets <= floor + near_asset_floor_width))) @ cohort.weights
-            if near_asset_floor_width is not None else None
+            (
+                floor_contacts
+                | ((cohort.assets > floor) & (cohort.assets <= floor + near_asset_floor_width))
+            )
+            @ cohort.weights
+            if near_asset_floor_width is not None
+            else None
         ),
         near_asset_floor_width=near_asset_floor_width,
     )
@@ -402,8 +408,12 @@ def simulate_population(
         "minimum_mass": float(cohort.weights.min()),
         "minimum_consumption_capacity_slack": cohort.minimum_consumption_capacity_slack,
         "minimum_assets_during_period": cohort.minimum_assets_during_period,
-        "maximum_full_period_floor_violation": max(0.0, floor - cohort.minimum_assets_during_period),
-        "initial_law": asdict(initial_nodes.initial_law) if initial_nodes.initial_law is not None else None,
+        "maximum_full_period_floor_violation": max(
+            0.0, floor - cohort.minimum_assets_during_period
+        ),
+        "initial_law": asdict(initial_nodes.initial_law)
+        if initial_nodes.initial_law is not None
+        else None,
         "quadrature_order": initial_nodes.quadrature_order,
         "numerical_asset_floor": floor,
         "economic_asset_floor": float(solution.params.asset_floor),

@@ -33,6 +33,7 @@ from blinder_weiss.calibration import (
     weighted_age_moment_loss,
 )
 from blinder_weiss.continuum import (
+    InitialAtom,
     SyntheticInitialDistribution,
     initial_quadrature,
     sample_initial_population,
@@ -94,6 +95,11 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--platform", choices=["cpu", "gpu"], default="cpu")
     parser.add_argument("--config-report", type=Path)
+    parser.add_argument(
+        "--initial-law-report",
+        type=Path,
+        help="Reuse the explicit initial_law in a previous population report",
+    )
     parser.add_argument("--quadrature", type=int, nargs="+", default=[4, 8, 16])
     parser.add_argument("--distribution", type=int, nargs="*", default=[9, 17, 33])
     parser.add_argument("--people", type=int, default=256)
@@ -134,7 +140,13 @@ def main():
             compute_platform=args.platform,
         )
         params = benchmark_params(horizon=6.0)
-    law = SyntheticInitialDistribution()
+    if args.initial_law_report is not None:
+        law_data = json.loads(args.initial_law_report.read_text())["initial_law"]
+        law = SyntheticInitialDistribution(
+            **{**law_data, "atoms": tuple(InitialAtom(**atom) for atom in law_data["atoms"])}
+        )
+    else:
+        law = SyntheticInitialDistribution()
     threshold = 0.02
     args.output.mkdir(parents=True, exist_ok=True)
     source_root = Path(__file__).resolve().parents[1] / "code/jax/blinder_weiss"
@@ -146,6 +158,9 @@ def main():
         "config": asdict(config),
         "params": params._asdict(),
         "initial_law": asdict(law),
+        "initial_law_source": str(args.initial_law_report)
+        if args.initial_law_report
+        else "current synthetic default",
         "distribution_asset_curvature": args.distribution_asset_curvature,
         "seed": 125,
         "source_sha256": {
