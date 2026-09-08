@@ -258,10 +258,12 @@ def test_actual_binding_checkpoint_policy_uses_asset_roundoff_scale():
             state = jnp.array([[floor, 0.0]])
             hours = jnp.zeros(1)
             capacity = maximum_feasible_consumption(
-                state[:, 0], state[:, 1], hours, hours, current_params, 0.5, floor, 4, method="checkpoints"
+                state[:, 0], state[:, 1], hours, hours, current_params, 0.5, floor, 4,
+                method="checkpoints",
             )
             endpoint = maximum_feasible_consumption(
-                state[:, 0], state[:, 1], hours, hours, current_params, 0.5, floor, 1, method="checkpoints"
+                state[:, 0], state[:, 1], hours, hours, current_params, 0.5, floor, 1,
+                method="checkpoints",
             )
             next_assets = constant_control_transition(
                 state, jnp.stack((capacity, hours, hours), axis=-1), current_params, 0.5
