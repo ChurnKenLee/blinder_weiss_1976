@@ -10,11 +10,14 @@ weights; the nodes here only vary initial states.
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass, is_dataclass
+from functools import lru_cache
 from typing import Any, Literal
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 
-from .bellman import BellmanSolution
+from .bellman import _DOMAIN_TOLERANCE, BellmanConfig, BellmanSolution, maximum_feasible_consumption
 from .population import CohortMoments, cohort_moments, simulate_cohort
 
 
@@ -235,6 +238,32 @@ def sample_initial_population(
     )
 
 
+@lru_cache(maxsize=16)
+def _cached_floor_contacts(config: BellmanConfig) -> Any:
+    """Identify exact initial floor mass and subsequent binding endpoint controls."""
+
+    @jax.jit
+    def contacts(params, states, controls):
+        endpoint_capacity = maximum_feasible_consumption(
+            states[:-1, :, 0],
+            states[:-1, :, 1],
+            controls[..., 1],
+            controls[..., 2],
+            params,
+            params.horizon / config.periods,
+            config.asset_minimum,
+            1,
+        )
+        next_assets = states[1:, :, 0]
+        contact = (next_assets <= config.asset_minimum) | (
+            (controls[..., 0] >= endpoint_capacity)
+            & (jnp.abs(next_assets - config.asset_minimum) <= _DOMAIN_TOLERANCE)
+        )
+        return jnp.concatenate(((states[0, :, 0] == config.asset_minimum)[None, :], contact))
+
+    return contacts
+
+
 def simulate_population(
     solution: BellmanSolution,
     initial_nodes: PopulationNodes,
@@ -290,12 +319,15 @@ def simulate_population(
     )
     moments = cohort_moments(cohort, participation_hours_threshold=participation_hours_threshold)
     floor = solution.config.asset_minimum
+    floor_contacts = np.asarray(
+        _cached_floor_contacts(solution.config)(solution.params, cohort.states, cohort.controls)
+    )
     state_moments = PopulationStateMoments(
         time=solution.time.copy(),
         assets=cohort.assets @ cohort.weights,
         human_capital=cohort.human_capital @ cohort.weights,
         log_human_capital=cohort.log_human_capital @ cohort.weights,
-        asset_floor_mass=(np.abs(cohort.assets - floor) <= 1e-10) @ cohort.weights,
+        asset_floor_mass=floor_contacts @ cohort.weights,
     )
     diagnostics = {
         "total_mass": np.full(solution.config.periods + 1, cohort.weights.sum()),
@@ -304,7 +336,8 @@ def simulate_population(
         "minimum_consumption_capacity_slack": cohort.minimum_consumption_capacity_slack,
         "numerical_asset_floor": floor,
         "economic_asset_floor": float(solution.params.asset_floor),
-        "asset_floor_mass_tolerance": 1e-10,
+        "asset_floor_contact": "exact initial floor; binding endpoint control with domain roundoff",
+        "asset_floor_contact_roundoff_tolerance": _DOMAIN_TOLERANCE,
         "nodes": cohort.weights.size,
     }
     return PopulationResult(backend, moments, state_moments, diagnostics, cohort)

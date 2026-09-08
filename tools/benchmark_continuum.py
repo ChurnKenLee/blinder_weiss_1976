@@ -321,14 +321,16 @@ def main():
                     flush=True,
                 )
                 evaluation, timing = timer.measure(
-                    lambda: evaluate_calibration(
-                        params._replace(leisure_weight=leisure_weight),
-                        config,
-                        nodes,
-                        targets,
-                        backend=backend,
-                        distribution_grid=grid,
-                        store_snapshots=True,
+                    lambda leisure_weight=leisure_weight, nodes=nodes, backend=backend, grid=grid: (
+                        evaluate_calibration(
+                            params._replace(leisure_weight=leisure_weight),
+                            config,
+                            nodes,
+                            targets,
+                            backend=backend,
+                            distribution_grid=grid,
+                            store_snapshots=True,
+                        )
                     )
                 )
                 report["perturbations"].append(
