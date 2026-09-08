@@ -27,6 +27,9 @@ def main() -> None:
     parser.add_argument("--log-human-capital-minimum", type=float, default=-2.0)
     parser.add_argument("--log-human-capital-maximum", type=float, default=2.25)
     parser.add_argument("--periods", type=int, default=70)
+    parser.add_argument(
+        "--asset-feasibility", choices=["continuous", "checkpoints"], default="continuous"
+    )
     parser.add_argument("--control-nodes", type=int, default=11)
     parser.add_argument("--consumption-nodes", type=int, default=15)
     parser.add_argument("--refinement-steps", type=int, default=24)
@@ -52,6 +55,7 @@ def main() -> None:
         log_human_capital_minimum=args.log_human_capital_minimum,
         log_human_capital_maximum=args.log_human_capital_maximum,
         periods=args.periods,
+        asset_feasibility=args.asset_feasibility,
         hours_nodes=args.control_nodes,
         investment_nodes=args.control_nodes,
         consumption_nodes=args.consumption_nodes,
