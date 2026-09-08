@@ -91,6 +91,7 @@ def population(floor_mass):
     return SimpleNamespace(
         moments=SimpleNamespace(
             time=np.array([0.0, 0.5]),
+            participation_hours_threshold=0.02,
             assets=np.ones(2),
             human_capital=np.ones(2),
             hours=np.zeros(2),
@@ -105,6 +106,7 @@ def population(floor_mass):
             human_capital=np.ones(3),
             log_human_capital=np.zeros(3),
             asset_floor_mass=np.array(floor_mass),
+            near_asset_floor_width=0.01,
             near_asset_floor_mass=np.ones(3) * 0.2,
         ),
     )
@@ -123,4 +125,15 @@ def test_native_floor_mass_comparison_keeps_endpoint_age_and_rejects_changed_mes
     assert result["near_asset_floor_mass"]["maximum_absolute"] == 0.0
     reference.state_moments.time = np.array([0.0, 0.6, 1.0])
     with pytest.raises(ValueError, match="ages"):
+        compare_native_profiles(actual, reference)
+
+
+def test_native_comparison_rejects_changed_band_and_participation_definitions():
+    actual, reference = population([0.1, 0.1, 0.1]), population([0.1, 0.1, 0.1])
+    reference.state_moments.near_asset_floor_width = 0.02
+    with pytest.raises(ValueError, match="definitions"):
+        compare_native_profiles(actual, reference)
+    reference.state_moments.near_asset_floor_width = 0.01
+    reference.moments.participation_hours_threshold = 0.04
+    with pytest.raises(ValueError, match="definitions"):
         compare_native_profiles(actual, reference)

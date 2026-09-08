@@ -106,6 +106,15 @@ def compare_target_predictions(
 
 def compare_native_profiles(actual, reference) -> dict[str, Any]:
     """Compare every native age directly; state boundary probabilities are not interpolated."""
+    if (
+        actual.moments.participation_hours_threshold
+        != reference.moments.participation_hours_threshold
+        or actual.state_moments.near_asset_floor_width
+        != reference.state_moments.near_asset_floor_width
+    ):
+        raise ValueError(
+            "native profiles require identical participation and near-floor definitions"
+        )
     result = {}
     for name in MOMENT_UNITS:
         owner = moment_owner(actual, name)
@@ -169,9 +178,14 @@ def main():
         policy_report["config"]["asset_minimum"] != stability["config"]["asset_minimum"]
     ):
         parser.error("a fixed initial floor component requires the same numerical floor")
+    policy_array_hash = hashlib.sha256(
+        (args.policy_folder / "policies.npz").read_bytes()
+    ).hexdigest()
     solution, _ = load_solution(args.policy_folder, args.platform)
-    if (args.policy_folder / "report.json").read_bytes() != policy_bytes:
-        raise RuntimeError("policy report changed while loading; retry from a stable artifact")
+    if (args.policy_folder / "report.json").read_bytes() != policy_bytes or hashlib.sha256(
+        (args.policy_folder / "policies.npz").read_bytes()
+    ).hexdigest() != policy_array_hash:
+        raise RuntimeError("policy artifact changed while loading; retry from a stable artifact")
     model_root = Path(__file__).resolve().parents[1] / "code/jax/blinder_weiss"
     report: dict[str, Any] = {
         "purpose": "saved-policy quadrature refinement against fixed calibration targets",
@@ -181,9 +195,7 @@ def main():
         "continuum_convergence_certified": False,
         "policy_folder": str(args.policy_folder),
         "policy_report_sha256": hashlib.sha256(policy_bytes).hexdigest(),
-        "policy_arrays_sha256": hashlib.sha256(
-            (args.policy_folder / "policies.npz").read_bytes()
-        ).hexdigest(),
+        "policy_arrays_sha256": policy_array_hash,
         "stability_report": str(args.stability_report),
         "stability_report_sha256": hashlib.sha256(stability_bytes).hexdigest(),
         "fixed_target_reference": stability.get("target_reference"),
