@@ -318,7 +318,7 @@ def simulate_population(
             if is_dataclass(simulation.diagnostics)
             else dict(simulation.diagnostics)
         )
-        initial_weights = initial_nodes.weights / initial_nodes.weights.sum()
+        initial_weights = initial_nodes.weights
         diagnostics["initial_lower_interior_remap_mass"] = float(
             initial_weights @ initial_stencil.lower_interior_remap
         )

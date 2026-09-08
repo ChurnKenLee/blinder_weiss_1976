@@ -172,8 +172,10 @@ def main():
     specifications: list[tuple[Literal["cohort", "quadrature", "transport"], int]] = [
         ("cohort", args.people)
     ]
-    specifications += [("quadrature", n) for n in sorted(set(args.quadrature))]
-    specifications += [("transport", n) for n in sorted(set(args.distribution))]
+    for order in sorted(set(args.quadrature)):
+        specifications.append(("quadrature", order))
+    for size in sorted(set(args.distribution)):
+        specifications.append(("transport", size))
     reference_nodes = initial_quadrature(
         law, nodes_per_dimension=max(args.quadrature), asset_floor=config.asset_minimum
     )
