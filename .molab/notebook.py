@@ -370,7 +370,7 @@ def run_population(
           f"maximum mass drift {population_result.diagnostics['maximum_mass_drift']:.2e}. "
           "The initial point atom at (A, K) = (5, 1) has probability 0.05; "
           "the remaining probability is continuous after accounting for the selected floor mass.")
-    return (population_result,)
+    return population_initial_nodes, population_result
 
 
 @app.cell(hide_code=True)
@@ -455,6 +455,67 @@ def population_moment_view(mo, plt, population_result):
     plt.close(_moment_figure)
     mo.vstack([mo.md("**Unconditional cohort moments.** All initial probability components enter "
                      "the means. These are model units; model age is not a calendar-age estimate."), _moment_figure])
+    return
+
+
+@app.cell
+def floor_spike_attribution(
+    mo,
+    np,
+    plt,
+    population_initial_nodes,
+    population_result,
+):
+    if population_result.backend == "transport":
+        _floor_explanation = mo.md("Select quadrature to attribute endpoint floor mass to the initial population components.")
+    else:
+        from blinder_weiss.continuum import _cached_floor_contacts as _classify_floor_contacts
+
+        _sim = population_result.simulation
+        _contacts = np.asarray(_classify_floor_contacts(_sim.solution.config)(
+            _sim.solution.params, _sim.states, _sim.controls,
+        ))
+        _components = population_initial_nodes.component
+        _component_names = ["interior", "asset_floor", "point_atom"]
+        _component_labels = ["Initially continuous population", "Initial floor component", "Initial point atom"]
+        _contributions = [
+            _contacts @ np.where(_components == _name, _sim.weights, 0.0)
+            for _name in _component_names
+        ]
+        _point_probability = float(_sim.weights[_components == "point_atom"].sum())
+        _interior_probability = float(_sim.weights[_components == "interior"].sum())
+        _alternative_weights = np.where(_components == "point_atom", 0.0, _sim.weights)
+        if _interior_probability > 0:
+            _alternative_weights += np.where(
+                _components == "interior",
+                _sim.weights * _point_probability / _interior_probability, 0.0,
+            )
+        _alternative_floor = _contacts @ _alternative_weights
+        _attribution_fig, _attribution_axes = plt.subplots(1, 2, figsize=(12, 3.8), constrained_layout=True)
+        _attribution_axes[0].stackplot(_sim.time, *_contributions, labels=_component_labels, alpha=0.8)
+        _attribution_axes[0].set(title="Where endpoint floor mass comes from", xlabel="Model age", ylabel="Population probability")
+        _attribution_axes[0].legend(fontsize=7)
+        _attribution_axes[1].plot(_sim.time, population_result.state_moments.asset_floor_mass,
+                                  label="Current synthetic mixture")
+        _attribution_axes[1].plot(_sim.time, _alternative_floor, "--",
+                                  label="Point-atom weight moved to continuous component")
+        _attribution_axes[1].set(title="Sensitivity to the imposed initial atom", xlabel="Model age", ylabel="Population probability")
+        _attribution_axes[1].legend(fontsize=7)
+        for _axis in _attribution_axes:
+            _axis.set_xlim(0, 25)
+            _axis.grid(alpha=0.2)
+        plt.close(_attribution_fig)
+        _floor_explanation = mo.vstack([
+            mo.md("**Why the floor-probability plot spikes.** The default synthetic law places 5% of the population "
+                  "at exactly (A, K) = (5, 1). Everyone in this point atom follows the same path. In the current "
+                  "benchmark that group reaches the numerical floor at model age 13.5, adding exactly five "
+                  "percentage points. The chart counts contact at age boundaries; a contact within a half-year "
+                  "can be missed by this endpoint statistic. The dashed comparison changes the initial distribution "
+                  "by moving the point atom's weight to the continuous component while retaining the initial floor share. "
+                  "It uses the same policies and unsmoothed trajectories."),
+            _attribution_fig,
+        ])
+    _floor_explanation
     return
 
 
