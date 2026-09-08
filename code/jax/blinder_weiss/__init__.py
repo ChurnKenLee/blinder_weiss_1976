@@ -27,6 +27,10 @@ from .bellman_convergence import (  # noqa: E402
     bellman_refinement_config,
     solve_bellman_converged,
 )
+from .bellman_smoothness import (  # noqa: E402
+    RetirementEulerDiagnostics,
+    retirement_euler_diagnostics,
+)
 from .calibration import (  # noqa: E402
     MOMENT_UNITS,
     AgeMomentTarget,
@@ -84,6 +88,8 @@ from .solver import (  # noqa: E402
 )
 
 __all__ = [
+    "RetirementEulerDiagnostics",
+    "retirement_euler_diagnostics",
     "DistributionDomainError",
     "DistributionGrid",
     "DistributionSimulation",

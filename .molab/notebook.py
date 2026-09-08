@@ -206,6 +206,44 @@ def _(benchmark_directory, mo, np, plt, reference_household):
 
 
 @app.cell(hide_code=True)
+def policy_jitter_comparison(
+    benchmark_directory,
+    mo,
+    np,
+    plt,
+    reference_household,
+):
+    _probe = ["A = 5, K = 1", "A = 2, K = 0.8", "A = 8, K = 1.2"].index(reference_household.value)
+    _jitter_figure, _jitter_axes = plt.subplots(1, 2, figsize=(12, 3.8), constrained_layout=True)
+    with np.load(benchmark_directory / "asset_refinement_smoothness.npz") as _data:
+        for _folder, _label, _style in [
+            ("bicubic_padded_fine", "61 asset nodes", "--"),
+            ("bicubic_asset121_fine", "121 asset nodes", "-"),
+        ]:
+            _time = _data[f"{_folder}_time"]
+            _controls = _data[f"{_folder}_controls"][:, _probe]
+            _retired = _controls[:, 1] < 1e-6
+            _jitter_axes[0].plot(_time[:-1], np.where(_retired, _controls[:, 0], np.nan), _style, label=_label)
+            _eligible = _data[f"{_folder}_euler_eligible"][:, _probe]
+            _residual = _data[f"{_folder}_euler_residuals"][:, _probe]
+            _jitter_axes[1].plot(_time[1:-1], np.where(_eligible, _residual, np.nan), _style, label=_label)
+    _jitter_axes[0].set(title="Consumption during retirement", xlabel="Model age", ylabel="Consumption")
+    _jitter_axes[1].axhline(0, color="black", lw=0.8)
+    _jitter_axes[1].set(title="Interior retirement Euler residual", xlabel="Model age", ylabel="Log-growth error per year")
+    for _axis in _jitter_axes:
+        _axis.grid(alpha=0.2)
+        _axis.legend(fontsize=8)
+    plt.close(_jitter_figure)
+    mo.vstack([
+        mo.md("**Measured jitter reduction.** The denser asset grid and larger propagation budget reduce "
+              "retirement Euler RMS by 53.7%, 52.3%, and 36.7% for the baseline, low, and high reference types. "
+              "Residuals exclude the borrowing boundary. Full mesh convergence remains unverified."),
+        _jitter_figure,
+    ])
+    return
+
+
+@app.cell(hide_code=True)
 def continuum_intro(mo):
     mo.md(r"""
     ## Continuum distribution and calibration pilot
@@ -438,7 +476,7 @@ def continuum_benchmark_table(
             _difference = _result.get("maximum_absolute_difference_from_refined_quadrature", {})
             _rows.append({
                 "Method / resolution": _name,
-                "Completed": _result.get("accepted", False),
+                "Completed": _result.get("completed", _result.get("accepted", False)),
                 "Warm population seconds": _result.get("warm_population", {}).get("wall_seconds"),
                 "Max hours difference": _difference.get("hours"),
                 "Max participation difference": _difference.get("participation"),

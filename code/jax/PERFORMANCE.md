@@ -5,12 +5,61 @@ JAX/JAXlib/CUDA plugin 0.11.0, float64, and Python 3.13.11. The project manifest
 specifies Python >=3.14 and JAX 0.10.1; these measurements describe the installed
 runtime. They are not RTX 5070 Ti measurements.
 
-Repeated solves are substantially faster. The latest padded-domain bicubic run
-takes 6.94–6.95 s, passes the reported value-shape audit, and removes the
-artificial late-life training found on the narrower domain. All three reference
-utility shortfalls are below 0.00183. Population mesh convergence and policy
-smoothness remain unverified: individual value gaps and retirement consumption
-oscillations still need resolution.
+The latest refinement (2026-09-08) reduces retirement consumption Euler jitter
+by 37–54% across three independent reference households. It uses 121 asset
+nodes on the padded domain and takes 9.37 s per repeated GPU solve, compared
+with 6.94–6.95 s for the preceding 61-node run. Full population, policy and
+time-grid convergence is not established.
+
+## Measured retirement smoothness improvement
+
+The new configuration keeps 140 periods, 79 log-human-capital nodes, 15×15×19
+control seeds, 48 local steps, the padded `[-4.5,2.25]` log-K domain and physical
+asset coordinate. Asset nodes rise from 61 to 121; the neighboring-policy
+propagation cap also rises from 160 to 240, at zero gain tolerance. This is a
+joint grid/search-budget comparison, not an isolated estimate of grid effects.
+
+| Initial (A,K) | Retirement Euler RMS, previous → refined | Reduction | Refined utility shortfall |
+|---|---:|---:|---:|
+| (5,1) | 0.008915 → 0.004131 | 53.7% | 0.001412 |
+| (2,0.8) | 0.008081 → 0.003851 | 52.3% | 0.001837 |
+| (8,1.2) | 0.004559 → 0.002886 | 36.7% | 0.000706 |
+
+The baseline maximum absolute Euler residual falls from 0.02470 to 0.01198 per
+model year. The statistic uses adjacent retired periods away from the numerical
+asset floor, and compares consumption growth with `(r-rho)/(1-consumption_power)`.
+It does not penalize economic work/retirement switches. `retirement_euler_diagnostics`
+now provides this reproducible measure for individual or batched paths.
+The low type's realized utility declines by 0.0000120; baseline and high-type
+utility improve by 0.0001296 and 0.0000308. Direct references remain accepted
+48-interval paths, not mesh-converged truth.
+
+The refined full-domain shape audit checks 21,227,973 points: all derivatives
+are finite, none is below `-1e-8`, and the largest bicubic constraint residual
+is 1.42e-14. See the [smoothness comparison](../../output/solver_benchmarks/asset_refinement_smoothness.json),
+[policy checkpoint](../../output/solver_benchmarks/bicubic_asset121_fine/report.json),
+and [shape audit](../../output/solver_benchmarks/bicubic_asset121_shape_audit.json).
+An attempted CRRA asset-coordinate transformation was exact on analytic
+retirement values but worsened full-model utility and did not improve jitter;
+it was removed from production and preserved only as a reproducible
+[rejected experiment](../../output/solver_benchmarks/experiments/utility_coordinate/).
+
+Reproduce the refined solution and the comparison:
+
+```bash
+PYTHONPATH=code/jax python tools/benchmark_bellman.py \
+  --output output/solver_benchmarks/bicubic_asset121_fine \
+  --asset-nodes 121 --human-capital-nodes 79 --periods 140 \
+  --log-human-capital-minimum -4.5 \
+  --control-nodes 15 --consumption-nodes 19 --refinement-steps 48 \
+  --interpolation monotone_bicubic --neighbor-destinations \
+  --neighbor-sweeps 240 --neighbor-tolerance 0 --diagnostics --repeats 2
+PYTHONPATH=code/jax python tools/validate_bellman_smoothness.py \
+  --output output/solver_benchmarks/asset_refinement_smoothness.json
+```
+
+For the new population backends and synthetic calibration pilot, see
+[CONTINUUM_CALIBRATION.md](CONTINUUM_CALIBRATION.md).
 
 ## Implemented changes
 
