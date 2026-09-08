@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 from dataclasses import asdict
+from functools import partial
 from pathlib import Path
 from time import perf_counter
 from typing import Any, Literal
@@ -334,16 +335,15 @@ def main():
                 )
                 try:
                     evaluation, timing = timer.measure(
-                        lambda leisure_weight=leisure_weight, nodes=nodes, backend=backend, grid=grid: (
-                            evaluate_calibration(
-                                params._replace(leisure_weight=leisure_weight),
-                                config,
-                                nodes,
-                                targets,
-                                backend=backend,
-                                distribution_grid=grid,
-                                store_snapshots=True,
-                            )
+                        partial(
+                            evaluate_calibration,
+                            params._replace(leisure_weight=leisure_weight),
+                            config,
+                            nodes,
+                            targets,
+                            backend=backend,
+                            distribution_grid=grid,
+                            store_snapshots=True,
                         )
                     )
                 except DistributionDomainError as error:
