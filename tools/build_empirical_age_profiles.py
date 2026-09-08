@@ -27,6 +27,8 @@ def dictionary(directory: Path) -> tuple[dict, dict]:
     columns = {}
     for node in ET.parse(next(directory.glob("*.xml"))).getroot().findall(".//{*}var"):
         location = node.find("{*}location")
+        if location is None:
+            raise ValueError("DDI variable has no fixed-width location")
         columns[node.attrib["name"]] = (
             int(location.attrib["StartPos"]) - 1,
             int(location.attrib["EndPos"]),
