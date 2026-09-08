@@ -82,11 +82,12 @@ def main():
         "runs": {},
     }
     for folder in args.folders:
-        solution, _ = load_solution(args.root / folder, args.platform)
+        solution, saved_report = load_solution(args.root / folder, args.platform)
         if not args.reuse_paths:
             simulation = simulate_cohort(solution, _INITIAL_ASSETS, _INITIAL_CAPITAL)
             arrays[f"{folder}_states"] = simulation.states
             arrays[f"{folder}_controls"] = simulation.controls
+            arrays[f"{folder}_simulation_platform"] = np.asarray(simulation.solution.backend)
         arrays[f"{folder}_time"] = solution.time
         summary, diagnostic = summarize(
             solution,
@@ -94,6 +95,8 @@ def main():
             arrays[f"{folder}_controls"],
             direct_utilities,
         )
+        summary["config"] = saved_report["config"]
+        summary["simulation_platform"] = str(arrays[f"{folder}_simulation_platform"])
         report["runs"][folder] = summary
         arrays[f"{folder}_euler_residuals"] = diagnostic.residuals
         arrays[f"{folder}_euler_eligible"] = diagnostic.eligible
