@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import partial
+from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -9,7 +10,7 @@ import pytest
 from blinder_weiss import benchmark_params, constant_control_transition
 from blinder_weiss.bellman import _interpolate_numpy, maximum_feasible_consumption
 from blinder_weiss.bellman_consumption import optimize_conditional_consumption
-from scipy.optimize import minimize_scalar
+from scipy.optimize import OptimizeResult, minimize_scalar
 
 
 def test_conditional_consumption_matches_global_piecewise_reference() -> None:
@@ -105,7 +106,7 @@ def test_conditional_consumption_matches_global_piecewise_reference() -> None:
                 method="bounded",
                 options={"xatol": 1e-13},
             )
-            candidate_values.append(-result.fun)
+            candidate_values.append(-cast(OptimizeResult, result).fun)
         assert float(values[index]) == pytest.approx(max(candidate_values), abs=2e-10)
         assert float(values[index]) == pytest.approx(
             objective(float(consumption[index])), abs=2e-10
