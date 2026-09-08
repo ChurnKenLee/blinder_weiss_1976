@@ -331,7 +331,7 @@ def run_population(
           f"maximum mass drift {population_result.diagnostics['maximum_mass_drift']:.2e}. "
           "The initial point atom at (A, K) = (5, 1) has probability 0.05; "
           "the remaining probability is continuous after accounting for the selected floor mass.")
-    return
+    return (population_result,)
 
 
 @app.cell(hide_code=True)
@@ -339,6 +339,83 @@ def population_age_control(mo):
     population_age = mo.ui.slider(0, 70, step=0.5, value=25,
                                   label="Model age for distribution view")
     population_age
+    return (population_age,)
+
+
+@app.cell(hide_code=True)
+def population_distribution_view(
+    mo,
+    np,
+    plt,
+    population_age,
+    population_result,
+):
+    _period = int(np.argmin(np.abs(population_result.state_moments.time - population_age.value)))
+    _figure, _axes = plt.subplots(1, 3, figsize=(13, 4), constrained_layout=True)
+    if population_result.backend == "transport":
+        _mass = population_result.simulation.masses[_period]
+        _grid = population_result.simulation.grid
+        _log_probability = np.log10(np.maximum(_mass[1:], 1e-16))
+        _mesh = _axes[0].pcolormesh(
+            _grid.log_human_capital_nodes, _grid.asset_interior_nodes,
+            np.ma.masked_where(_mass[1:] <= 0, _log_probability), shading="nearest", cmap="viridis",
+            vmin=-8, vmax=0,
+        )
+        _figure.colorbar(_mesh, ax=_axes[0], label="log10 probability per node")
+        _axes[0].set(xlabel="Log human capital", ylabel="Assets", title="Interior probability mass")
+        _axes[0].set_yscale("symlog", linthresh=0.1)
+        _axes[1].plot(_grid.log_human_capital_nodes, _mass[0], color="tab:orange")
+        _axes[1].set(xlabel="Log human capital", ylabel="Probability per face node",
+                     title=f"Floor face: {_mass[0].sum():.2%} of population")
+        _axes[2].step(_grid.asset_nodes, np.cumsum(_mass.sum(axis=1)), where="post")
+    else:
+        _states = population_result.simulation.states[_period]
+        _weights = population_result.simulation.weights
+        _positive = _weights > 0
+        _scatter = _axes[0].scatter(
+            _states[_positive, 1], _states[_positive, 0],
+            c=np.log10(_weights[_positive]), s=9, cmap="viridis",
+        )
+        _figure.colorbar(_scatter, ax=_axes[0], label="log10 node probability")
+        _axes[0].set(xlabel="Log human capital", ylabel="Assets", title="Quadrature probability nodes")
+        _axes[0].set_yscale("symlog", linthresh=0.1)
+        _sort_k = np.argsort(_states[:, 1])
+        _axes[1].step(_states[_sort_k, 1], np.cumsum(_weights[_sort_k]), where="post")
+        _axes[1].set(xlabel="Log human capital", ylabel="Cumulative probability", title="Human-capital CDF")
+        _sort_a = np.argsort(_states[:, 0])
+        _axes[2].step(_states[_sort_a, 0], np.cumsum(_weights[_sort_a]), where="post")
+    _axes[2].set(xlabel="Assets", ylabel="Cumulative probability", title="Asset CDF", ylim=(0, 1.02))
+    for _axis in _axes:
+        _axis.grid(alpha=0.15)
+    plt.close(_figure)
+    mo.vstack([
+        mo.md(f"**Distribution at model age {population_result.state_moments.time[_period]:g}.** "
+              "Colors and the floor-face curve show probability masses, not densities. "
+              "Grid size affects mass per node, so use CDFs and aggregate moments for refinement comparisons."),
+        _figure,
+    ])
+    return
+
+
+@app.cell(hide_code=True)
+def population_moment_view(mo, plt, population_result):
+    _moment_figure, _moment_axes = plt.subplots(2, 3, figsize=(13, 6), constrained_layout=True)
+    for _axis, _field, _title in zip(
+        _moment_axes.ravel()[:5],
+        ["consumption", "hours", "training_time", "earnings", "participation"],
+        ["Mean consumption", "Mean active time", "Mean training time", "Mean earnings", "Participation (h > 0.02)"],
+        strict=True,
+    ):
+        _axis.plot(population_result.moments.time, getattr(population_result.moments, _field))
+        _axis.set(title=_title, xlabel="Model age")
+    _moment_axes.ravel()[5].plot(population_result.state_moments.time,
+                                 population_result.state_moments.asset_floor_mass)
+    _moment_axes.ravel()[5].set(title="Probability at numerical asset floor", xlabel="Model age")
+    for _axis in _moment_axes.ravel():
+        _axis.grid(alpha=0.2)
+    plt.close(_moment_figure)
+    mo.vstack([mo.md("**Unconditional cohort moments.** All initial probability components enter "
+                     "the means. These are model units; model age is not a calendar-age estimate."), _moment_figure])
     return
 
 
