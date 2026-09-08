@@ -32,7 +32,9 @@ from .bellman import (
     _cached_greedy_kernels,
     _exprel,
     constant_control_transition,
+    endpoint_consumption_capacity,
     maximum_feasible_consumption,
+    minimum_assets_during_step,
 )
 from .boundary import _FLOOR_CONTACT_ULPS, endpoint_floor_contact
 from .model import ModelParams, effective_earnings_share
@@ -132,6 +134,8 @@ class DistributionStateMoments:
     human_capital: np.ndarray
     log_human_capital: np.ndarray
     asset_floor_mass: np.ndarray
+    near_asset_floor_mass: np.ndarray | None = None
+    near_asset_floor_width: float | None = None
 
 
 @dataclass(frozen=True)
@@ -315,6 +319,7 @@ def _cached_distribution_scan(
         continuation_history: Array,
         node_policy_history: Array,
         threshold: Array,
+        near_floor_width: Array,
     ) -> Any:
         asset_nodes = jnp.concatenate((jnp.array([config.asset_minimum]), interior_assets))
         assets, log_k = jnp.meshgrid(asset_nodes, log_k_nodes, indexing="ij")
@@ -324,7 +329,9 @@ def _cached_distribution_scan(
              (states[:, 0] == config.asset_minimum).astype(jnp.float64),
              (states[:, 0] >= interior_assets[-2]).astype(jnp.float64),
              (states[:, 1] <= log_k_nodes[1]).astype(jnp.float64),
-             (states[:, 1] >= log_k_nodes[-2]).astype(jnp.float64)), axis=-1
+             (states[:, 1] >= log_k_nodes[-2]).astype(jnp.float64),
+             (states[:, 0] <= config.asset_minimum + near_floor_width).astype(jnp.float64)),
+            axis=-1
         )
         floor_source = states[:, 0] == config.asset_minimum
         step = params.horizon / config.periods
@@ -339,11 +346,11 @@ def _cached_distribution_scan(
             destinations = constant_control_transition(states, controls, params, step)
             capacity = maximum_feasible_consumption(
                 states[:, 0], states[:, 1], hours, training, params, step,
-                config.asset_minimum, config.path_checkpoints,
+                config.asset_minimum, config.path_checkpoints, method=config.asset_feasibility,
             )
-            endpoint_capacity = maximum_feasible_consumption(
+            endpoint_capacity = endpoint_consumption_capacity(
                 states[:, 0], states[:, 1], hours, training, params, step,
-                config.asset_minimum, 1,
+                config.asset_minimum,
             )
             floor_destination = endpoint_floor_contact(
                 destinations[:, 0], config.asset_minimum, consumption, endpoint_capacity,
@@ -360,6 +367,7 @@ def _cached_distribution_scan(
                 & (training >= -1e-8) & (training <= hours + 1e-8)
                 & (capacity - consumption >= -1e-8)
             )
+            path_minimum = minimum_assets_during_step(states, controls, params, step)
             occupied = mass > 0
             active_valid = jnp.all(~occupied | (valid & finite & feasible))
             next_running = running & active_valid
@@ -396,6 +404,8 @@ def _cached_distribution_scan(
                     jnp.sum(mass * floor_destination
                             * (destinations[:, 0] != config.asset_minimum)),
                     next_running.astype(jnp.float64),
+                    jnp.min(jnp.where(occupied, path_minimum, jnp.inf)),
+                    jnp.sum(mass * (path_minimum < config.asset_minimum - _DOMAIN_TOLERANCE)),
                 ]),
             ))
             snapshot = mass if store_snapshots else jnp.zeros((0,), dtype=mass.dtype)
@@ -423,6 +433,7 @@ def simulate_distribution(
     *,
     participation_hours_threshold: float,
     store_snapshots: bool = False,
+    near_asset_floor_width: float | None = None,
 ) -> DistributionSimulation:
     """Evolve probability mass with feasible Bellman-greedy policies in a scan.
 
@@ -432,11 +443,18 @@ def simulate_distribution(
     of positive mass raise ``DistributionDomainError`` carrying diagnostics;
     expand the distribution/Bellman domains and rerun in that case. The
     positive numerical floor and first-cell spreading require convergence.
+    A positive ``near_asset_floor_width`` additionally measures mass in the
+    closed band from the numerical floor to floor + width in model asset units.
+    It includes exact floor mass and does not alter constraint classification.
     ``outer_cell_mass`` reports all-age probability at the nodes of each
     artificial outermost grid cell, including its inner endpoint. Face counts
     may overlap; they diagnose boundary exposure even when the Bellman policy
     rejects outward controls and recorded attempted exits are zero.
     """
+    if near_asset_floor_width is not None and (
+        not np.isfinite(near_asset_floor_width) or near_asset_floor_width <= 0
+    ):
+        raise ValueError("near_asset_floor_width must be finite and strictly positive")
     threshold = float(participation_hours_threshold)
     if not np.isfinite(threshold) or not 0 <= threshold < 1:
         raise ValueError("participation_hours_threshold must be finite and lie in [0, 1)")
@@ -464,6 +482,7 @@ def simulate_distribution(
         jax.device_put(grid.log_human_capital_nodes, device),
         jax.device_put(mass.ravel(), device), jax.device_put(solution.values[1:], device),
         jax.device_put(node_policy, device), jax.device_put(np.asarray(threshold), device),
+        jax.device_put(np.asarray(near_asset_floor_width or 0.0), device),
     ))
     diagnostics = {
         "exit_face_order": ("asset_floor", "asset_upper", "log_k_lower", "log_k_upper"),
@@ -491,6 +510,12 @@ def simulate_distribution(
         "minimum_consumption_capacity_slack": float(np.min(checks[:, 22])),
         "floor_roundoff_corrected_mass": checks[:, 23],
         "completed_periods": int(np.sum(checks[:, 24])),
+        "minimum_assets_during_period": float(np.min(checks[:, 25])),
+        "maximum_full_period_floor_violation": float(
+            max(0.0, grid.asset_floor - np.min(checks[:, 25]))
+        ),
+        "full_period_floor_violation_mass": checks[:, 26],
+        "near_asset_floor_width": near_asset_floor_width,
         "terminal_total_mass": float(np.sum(terminal)),
         "asset_floor": grid.asset_floor,
         "economic_asset_floor": float(solution.params.asset_floor),
@@ -520,6 +545,8 @@ def simulate_distribution(
     state_moments = DistributionStateMoments(
         time=solution.time.copy(), assets=state_array[:, 0], human_capital=state_array[:, 1],
         log_human_capital=state_array[:, 2], asset_floor_mass=state_array[:, 3],
+        near_asset_floor_mass=state_array[:, 7] if near_asset_floor_width is not None else None,
+        near_asset_floor_width=near_asset_floor_width,
     )
     full_mass = None
     if store_snapshots:

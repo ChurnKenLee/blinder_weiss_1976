@@ -25,6 +25,7 @@ from .bellman import (
     BellmanSolution,
     _cached_greedy_kernels,
     maximum_feasible_consumption,
+    minimum_assets_during_step,
 )
 from .model import ModelParams, effective_earnings_share
 
@@ -50,6 +51,7 @@ class CohortSimulation:
     policy_values: np.ndarray
     earnings: np.ndarray
     minimum_consumption_capacity_slack: float
+    minimum_assets_during_period: float = float("nan")
 
     @property
     def time(self) -> np.ndarray:
@@ -153,7 +155,7 @@ def _cached_cohort_checks(config: BellmanConfig) -> Any:
         states: Array,
         controls: Array,
         policy_values: Array,
-    ) -> tuple[Array, Array, Array, Array, Array]:
+    ) -> tuple[Array, Array, Array, Array, Array, Array]:
         assets, log_human_capital = states[..., 0], states[..., 1]
         consumption, hours, training = controls[..., 0], controls[..., 1], controls[..., 2]
         capacity = maximum_feasible_consumption(
@@ -165,6 +167,7 @@ def _cached_cohort_checks(config: BellmanConfig) -> Any:
             params.horizon / config.periods,
             config.asset_minimum,
             config.path_checkpoints,
+            method=config.asset_feasibility,
         )
         minimum_slack = jnp.min(capacity - consumption)
         tolerance = _FEASIBILITY_TOLERANCE
@@ -190,7 +193,10 @@ def _cached_cohort_checks(config: BellmanConfig) -> Any:
             & jnp.all(jnp.isfinite(policy_values))
             & jnp.all(jnp.isfinite(earnings))
         )
-        return earnings, minimum_slack, in_domain, feasible, finite
+        minimum_assets = jnp.min(minimum_assets_during_step(
+            states[:-1], controls, params, params.horizon / config.periods
+        ))
+        return earnings, minimum_slack, in_domain, feasible, finite, minimum_assets
 
     return check
 
@@ -213,8 +219,9 @@ def simulate_cohort(
 
     Raises ``ValueError`` for invalid initial states or weights and
     ``RuntimeError`` for nonfinite, infeasible, or out-of-domain trajectories.
-    Feasibility uses the solver's within-period asset checkpoints and an
-    absolute numerical tolerance of ``1e-8``. State-domain checks use ``1e-10``
+    Feasibility uses the solution's full-period or legacy checkpoint consumption
+    bound and an absolute numerical tolerance of ``1e-8``. The analytical
+    full-period minimum is reported for either method. State-domain checks use ``1e-10``
     to allow boundary roundoff. These are not continuous-time mesh-convergence
     certificates.
     """
@@ -244,7 +251,7 @@ def simulate_cohort(
     states, controls, policy_values, check_results = jax.device_get(
         (states_device, controls_device, values_device, checks)
     )
-    earnings, minimum_slack, in_domain, feasible, finite = check_results
+    earnings, minimum_slack, in_domain, feasible, finite, minimum_assets = check_results
     if not finite:
         raise RuntimeError("cohort rollout encountered nonfinite states or no feasible control")
     if not in_domain:
@@ -259,6 +266,7 @@ def simulate_cohort(
         policy_values=np.asarray(policy_values),
         earnings=np.asarray(earnings),
         minimum_consumption_capacity_slack=float(minimum_slack),
+        minimum_assets_during_period=float(minimum_assets),
     )
 
 
