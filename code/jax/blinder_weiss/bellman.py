@@ -18,7 +18,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from functools import lru_cache
 from time import perf_counter
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 import jax
 import jax.numpy as jnp
@@ -373,7 +373,7 @@ def constant_control_transition(
     state: Array,
     control: Array,
     params: ModelParams,
-    step: float,
+    step: ArrayLike,
 ) -> Array:
     """Exact one-step state transition for controls held constant.
 
@@ -447,11 +447,11 @@ def endpoint_consumption_capacity(
     growth = params.human_capital_productivity * training_time - params.human_capital_depreciation
     earnings = effective_earnings_share(hours, training_time) * jnp.exp(log_human_capital)
     discount_average = _exprel(-params.interest_rate * duration)
-    return (
+    return cast(Array, (
         params.interest_rate * asset_minimum
         + (assets - asset_minimum) / (duration * discount_average)
         + earnings * _exprel((growth - params.interest_rate) * duration) / discount_average
-    )
+    ))
 
 
 def minimum_assets_during_step(
