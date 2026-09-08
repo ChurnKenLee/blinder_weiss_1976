@@ -95,6 +95,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--platform", choices=["cpu", "gpu"], default="cpu")
     parser.add_argument("--config-report", type=Path)
+    parser.add_argument("--asset-feasibility", choices=["continuous", "checkpoints"])
     parser.add_argument(
         "--initial-law-report",
         type=Path,
@@ -140,6 +141,8 @@ def main():
             compute_platform=args.platform,
         )
         params = benchmark_params(horizon=6.0)
+    if args.asset_feasibility is not None:
+        config = BellmanConfig(**{**asdict(config), "asset_feasibility": args.asset_feasibility})
     if args.initial_law_report is not None:
         law_data = json.loads(args.initial_law_report.read_text())["initial_law"]
         law = SyntheticInitialDistribution(
