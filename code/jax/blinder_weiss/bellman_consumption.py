@@ -8,6 +8,8 @@ intervals avoids assuming that the stored continuation values are concave.
 
 from __future__ import annotations
 
+from typing import Literal
+
 import jax
 import jax.numpy as jnp
 from jax import Array
@@ -29,6 +31,7 @@ def optimize_conditional_consumption(
     asset_minimum: ArrayLike,
     consumption_floor: float,
     path_checkpoints: int,
+    asset_feasibility: Literal["continuous", "checkpoints"] = "continuous",
     continuation_is_terminal: ArrayLike = False,
     incumbent_consumption: Array | None = None,
     terminal_iterations: int = 48,
@@ -37,7 +40,8 @@ def optimize_conditional_consumption(
 
     All leading state dimensions are batched. Model parameters may be dynamic
     JAX inputs; checkpoint and iteration counts must be static under ``jit``.
-    The control set is the same checkpoint and next-state domain restriction
+    The control set uses the same selected full-period/legacy-checkpoint and
+    next-state domain restriction
     as the main Bellman solver. No artificial minimum consumption *fraction*
     is imposed. A supplied feasible incumbent is retained whenever better.
 
@@ -75,6 +79,7 @@ def optimize_conditional_consumption(
         duration,
         asset_minimum,
         path_checkpoints,
+        method=asset_feasibility,
     )
     lower = jnp.maximum(
         consumption_floor,

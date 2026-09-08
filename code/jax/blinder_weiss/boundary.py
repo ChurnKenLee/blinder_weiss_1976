@@ -7,7 +7,7 @@ from jax import Array
 from numpy.typing import ArrayLike
 
 # Covers cancellation and a few elementary-function/multiply/divide operations
-# in the exact transition and the checkpoint consumption bound. This is a
+# in the exact transition and the endpoint consumption bound. This is a
 # float64 arithmetic budget, not an economic near-boundary band.
 _FLOOR_CONTACT_ULPS = 32.0
 

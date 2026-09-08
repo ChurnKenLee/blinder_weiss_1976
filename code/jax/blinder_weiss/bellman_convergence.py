@@ -311,6 +311,7 @@ def _policy_value(
         step,
         solution.config.asset_minimum,
         solution.config.path_checkpoints,
+        method=solution.config.asset_feasibility,
     )
     next_states = constant_control_transition(
         states,
@@ -415,6 +416,7 @@ def _project_policy_controls(
         step,
         solution.config.asset_minimum,
         solution.config.path_checkpoints,
+        method=solution.config.asset_feasibility,
     )
     states = jnp.stack(
         (

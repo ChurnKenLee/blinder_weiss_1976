@@ -66,6 +66,12 @@ class BellmanConfig:
     An optional ``neighbor_policy_tolerance`` stops earlier when relative value
     gains become negligible. Use zero for cubic solves: small unresolved
     declines can otherwise be amplified by subsequent reconstruction.
+    ``asset_feasibility="continuous"`` enforces the asset floor over the
+    whole constant-control interval. ``"checkpoints"`` replays the historical
+    approximation; ``path_checkpoints`` matters only in that legacy mode.
+    The positive numerical floor still requires convergence toward the
+    economic borrowing limit, and exact path feasibility does not eliminate
+    temporal error from holding controls constant.
     ``neighbor_destination_candidates`` also tries consumption adjustments
     that preserve a neighboring policy's destination assets.
     """
@@ -189,6 +195,7 @@ class BellmanDiagnostics:
     all_values_finite: bool
     maximum_node_bellman_residual: float
     minimum_consumption_capacity_slack: float
+    minimum_node_path_assets: float
     minimum_training_time: float
     minimum_training_slack: float
     minimum_hours: float
@@ -205,6 +212,7 @@ class BellmanDiagnostics:
             "all_values_finite": self.all_values_finite,
             "maximum_node_bellman_residual": self.maximum_node_bellman_residual,
             "minimum_consumption_capacity_slack": self.minimum_consumption_capacity_slack,
+            "minimum_node_path_assets": self.minimum_node_path_assets,
             "minimum_training_time": self.minimum_training_time,
             "minimum_training_slack": self.minimum_training_slack,
             "minimum_hours": self.minimum_hours,
@@ -1484,6 +1492,7 @@ def _make_control_optimizer(
                 asset_minimum=asset_minimum,
                 consumption_floor=config.consumption_floor,
                 path_checkpoints=config.path_checkpoints,
+                asset_feasibility=config.asset_feasibility,
                 continuation_is_terminal=continuation_is_terminal,
                 incumbent_consumption=final_consumption,
             )
@@ -1917,6 +1926,8 @@ def simulate_policy(
     The returned domain flag allows ``1e-10`` of boundary roundoff, matching
     the optimizer's transition feasibility tolerance. Initial states must lie
     inside the represented domain before this numerical tolerance is applied.
+    ``minimum_assets`` audits the full analytical path in either feasibility
+    mode; legacy paths remain replayable and can reveal between-checkpoint dips.
     """
 
     params = solution.params
@@ -2073,6 +2084,13 @@ def simulate_policy(
             config=solution.config,
         )
     )
+    path_minimum = float(np.min(np.asarray(minimum_assets_during_step(
+        jnp.asarray(np.stack((assets[:-1], log_human_capital[:-1]), axis=-1)),
+        jnp.asarray(np.stack((consumption, hours, training_time), axis=-1)),
+        params, step,
+    ))))
+    if config.asset_feasibility == "continuous":
+        stayed_in_domain = stayed_in_domain and path_minimum >= config.asset_minimum - _DOMAIN_TOLERANCE
     return BellmanSimulation(
         solution=solution,
         policy_method=policy_method,
@@ -2087,7 +2105,7 @@ def simulate_policy(
         initial_value=initial_value,
         value_gap=initial_value - utility,
         stayed_in_domain=bool(stayed_in_domain),
-        minimum_assets=float(np.min(assets)),
+        minimum_assets=path_minimum,
     )
 
 
@@ -2115,6 +2133,7 @@ def diagnose_bellman(
     flow_discount = float(step * _exprel(-params.rho * step))
     maximum_bellman_residual = 0.0
     minimum_capacity_slack = np.inf
+    minimum_node_path_assets = np.inf
     next_states_inside_domain = True
 
     for period in range(config.periods):
@@ -2123,6 +2142,10 @@ def diagnose_bellman(
         training_time = jnp.asarray(solution.training_time_policy[period])
         controls = jnp.stack((consumption, hours, training_time), axis=-1)
         next_states = constant_control_transition(state_nodes, controls, params, step)
+        minimum_node_path_assets = min(
+            minimum_node_path_assets,
+            float(np.min(np.asarray(minimum_assets_during_step(state_nodes, controls, params, step)))),
+        )
         if period == config.periods - 1:
             continuation = bequest_utility(
                 jnp.maximum(next_states[..., 0], solution.asset_grid[0]),
@@ -2182,6 +2205,8 @@ def diagnose_bellman(
         all_values_finite
         and maximum_bellman_residual <= tolerance
         and minimum_capacity_slack >= -tolerance
+        and (config.asset_feasibility == "checkpoints"
+             or minimum_node_path_assets >= config.asset_minimum - tolerance)
         and minimum_training_time >= -tolerance
         and minimum_training_slack >= -tolerance
         and minimum_hours >= -tolerance
@@ -2193,6 +2218,7 @@ def diagnose_bellman(
         all_values_finite=all_values_finite,
         maximum_node_bellman_residual=maximum_bellman_residual,
         minimum_consumption_capacity_slack=minimum_capacity_slack,
+        minimum_node_path_assets=minimum_node_path_assets,
         minimum_training_time=minimum_training_time,
         minimum_training_slack=minimum_training_slack,
         minimum_hours=minimum_hours,
