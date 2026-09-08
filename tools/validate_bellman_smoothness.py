@@ -12,7 +12,7 @@ from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
-from blinder_weiss import simulate_cohort
+from blinder_weiss import ModelParams, simulate_cohort
 from blinder_weiss.bellman_smoothness import retirement_euler_diagnostics
 from validate_calibration_grid import lifetime_utilities, load_solution
 
@@ -46,6 +46,84 @@ def summarize(solution, states, controls, direct_utilities):
     return summary, diagnostic
 
 
+def summarize_population_validation(validation_path: Path, output: Path):
+    """Diagnose weighted retirement jitter from an existing paired cohort NPZ."""
+
+    validation = json.loads(validation_path.read_text())
+    weights = np.asarray(validation["cohort"]["weights"])
+    people = weights.size
+    report = {
+        "source_validation": str(validation_path),
+        "people": people,
+        "metric": "Euler log-consumption growth residual per model year",
+        "aggregation": "squared residuals weighted by initial type mass and eligible time pairs",
+        "runs": [],
+    }
+    diagnostics = []
+    times = []
+    with np.load(validation_path.with_suffix(".npz")) as arrays:
+        for run in validation["runs"]:
+            if run["status"] != "evaluated":
+                raise ValueError("all population runs must have evaluated successfully")
+            prefix = run["array_prefix"]
+            controls = arrays[f"{prefix}_controls"][:, :people]
+            states = arrays[f"{prefix}_states"][:, :people]
+            time = arrays[f"{prefix}_time"]
+            result = retirement_euler_diagnostics(
+                time,
+                controls[..., 0],
+                controls[..., 1],
+                states[..., 0],
+                ModelParams(**run["params"]),
+                asset_minimum=run["config"]["asset_minimum"],
+            )
+            diagnostics.append(result)
+            times.append(time)
+            mass = float(result.count @ weights)
+            rms = (
+                float(
+                    np.sqrt(
+                        np.sum(np.where(result.eligible, result.residuals**2, 0) @ weights) / mass
+                    )
+                )
+                if mass > 0
+                else None
+            )
+            valid = result.count > 0
+            report["runs"].append(
+                {
+                    "folder": run["folder"],
+                    "weighted_eligible_pairs": mass,
+                    "type_mass_with_eligible_pairs": float(weights[valid].sum()),
+                    "weighted_pooled_euler_rms": rms,
+                    "maximum_absolute_residual": (
+                        float(np.max(result.maximum_absolute[valid])) if np.any(valid) else None
+                    ),
+                    "maximum_absolute_residual_person": (
+                        int(np.nanargmax(result.maximum_absolute)) if np.any(valid) else None
+                    ),
+                }
+            )
+    if len(diagnostics) == 2 and np.array_equal(times[0], times[1]):
+        common = diagnostics[0].eligible & diagnostics[1].eligible
+        mass = float(np.sum(common @ weights))
+        if mass > 0:
+            rms = [
+                float(np.sqrt(np.sum(np.where(common, d.residuals**2, 0) @ weights) / mass))
+                for d in diagnostics
+            ]
+            report["common_retired_pairs"] = {
+                "weighted_pair_count": mass,
+                "weighted_pooled_euler_rms": rms,
+                "rms_reduction_fraction": 1.0 - rms[1] / rms[0] if rms[0] > 0 else None,
+            }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
+    temporary.replace(output)
+    return report
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("output/solver_benchmarks"))
@@ -55,7 +133,12 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--platform", choices=["cpu", "gpu"], default="gpu")
     parser.add_argument("--reuse-paths", action="store_true")
+    parser.add_argument("--population-validation", type=Path)
     args = parser.parse_args()
+    if args.population_validation is not None:
+        report = summarize_population_validation(args.population_validation, args.output)
+        print(json.dumps(report), flush=True)
+        return
     archive = args.output.with_suffix(".npz")
     arrays = {
         "initial_assets": _INITIAL_ASSETS,
