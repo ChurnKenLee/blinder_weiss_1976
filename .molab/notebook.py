@@ -252,7 +252,9 @@ def continuum_intro(mo):
     weighted nodes. Forward transport moves probability mass across the state grid
     as each cohort ages. Both use the same feasible policies and lifecycle dynamics.
 
-    The initial distribution and pilot targets are **synthetic**. Assets at the
+    The initial distribution and pilot targets are **synthetic**. Quadrature is
+    the current calibration reference. Forward transport is experimental because
+    its moment and boundary-mass errors remain material under refinement. Assets at the
     numerical floor have a separate mass component; nearby interior mass is tracked
     separately. Conservation and agreement under refinement are separate checks.
     """)
