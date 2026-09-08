@@ -66,6 +66,7 @@ Reproduce the refined solution and the comparison:
 ```bash
 PYTHONPATH=code/jax python tools/benchmark_bellman.py \
   --output output/solver_benchmarks/bicubic_asset121_fine \
+  --asset-feasibility checkpoints \
   --asset-nodes 121 --human-capital-nodes 79 --periods 140 \
   --log-human-capital-minimum -4.5 \
   --control-nodes 15 --consumption-nodes 19 --refinement-steps 48 \
@@ -254,6 +255,7 @@ Reproduce the measured padded run and comparison with the saved narrow fine run:
 ```bash
 PYTHONPATH=code/jax python tools/benchmark_bellman.py \
   --output output/solver_benchmarks/bicubic_padded_fine \
+  --asset-feasibility checkpoints \
   --asset-nodes 61 --human-capital-nodes 79 --periods 140 \
   --log-human-capital-minimum -4.5 \
   --control-nodes 15 --consumption-nodes 19 --refinement-steps 48 \
