@@ -52,6 +52,16 @@ from .diagnostics import (  # noqa: E402
     diagnose_path,
     regime_labels,
 )
+from .distribution import (  # noqa: E402
+    DistributionDomainError,
+    DistributionGrid,
+    DistributionSimulation,
+    DistributionStateMoments,
+    LocalTransport,
+    build_transport,
+    initialize_distribution,
+    simulate_distribution,
+)
 from .model import (  # noqa: E402
     ModelParams,
     benchmark_params,
@@ -74,6 +84,14 @@ from .solver import (  # noqa: E402
 )
 
 __all__ = [
+    "DistributionDomainError",
+    "DistributionGrid",
+    "DistributionSimulation",
+    "DistributionStateMoments",
+    "LocalTransport",
+    "build_transport",
+    "initialize_distribution",
+    "simulate_distribution",
     "MOMENT_UNITS",
     "AgeMomentTarget",
     "CalibrationEvaluation",
