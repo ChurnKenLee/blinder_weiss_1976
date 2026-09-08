@@ -266,12 +266,26 @@ def fit_scalar_calibration(
     remaining = max_evaluations - len(evaluations)
     result: Any
     if remaining:
-        result = minimize_scalar(
-            objective,
-            bounds=bounds,
-            method="bounded",
-            options={"xatol": parameter_tolerance, "maxiter": remaining},
-        )
+        if remaining == 1:
+            # SciPy's bounded implementation can perform two calls at maxiter=1.
+            # Evaluate its initial golden-section candidate ourselves at this cap.
+            value = bounds[0] + 0.5 * (3.0 - np.sqrt(5.0)) * (bounds[1] - bounds[0])
+            loss = objective(value)
+            result = OptimizeResult(
+                x=value,
+                fun=loss,
+                success=False,
+                status=1,
+                nfev=1,
+                message="Evaluation budget exhausted after one bounded-search candidate.",
+            )
+        else:
+            result = minimize_scalar(
+                objective,
+                bounds=bounds,
+                method="bounded",
+                options={"xatol": parameter_tolerance, "maxiter": remaining},
+            )
         result.raw_optimizer = {
             key: result[key] for key in ("x", "fun", "success", "status", "message", "nfev")
         }

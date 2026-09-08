@@ -518,3 +518,33 @@ def test_scalar_fit_keeps_incumbent_and_preserves_search_termination(monkeypatch
     assert not limited.success
     assert limited.raw_optimizer is None
     assert limited.nfev == 1 and limited.fun == 0.0
+
+
+@pytest.mark.parametrize("maximum", [1, 2, 3])
+@pytest.mark.parametrize("bounds", [(0.9, 1.1), (1.2, 1.4)])
+def test_scalar_fit_hard_evaluation_cap_inside_and_outside_bounds(monkeypatch, maximum, bounds):
+    from types import SimpleNamespace
+
+    import blinder_weiss.calibration as calibration
+
+    calls = []
+
+    def objective(params, *args, **kwargs):
+        calls.append(params.leisure_weight)
+        return SimpleNamespace(
+            params=params, objective=SimpleNamespace(loss=(params.leisure_weight - 1.04) ** 2)
+        )
+
+    monkeypatch.setattr(calibration, "evaluate_calibration", objective)
+    fit = calibration.fit_scalar_calibration(
+        "leisure_weight",
+        bounds,
+        params=benchmark_params(),
+        config=BellmanConfig(),
+        initial_nodes=initial_quadrature(nodes_per_dimension=2, asset_floor=0.001),
+        targets=synthetic_targets(),
+        max_evaluations=maximum,
+    )
+    assert fit.nfev == len(calls) == len(fit.evaluations) <= maximum
+    assert all(bounds[0] <= value <= bounds[1] for value in calls)
+    assert fit.fun == min(item.objective.loss for item in fit.evaluations)
