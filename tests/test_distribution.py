@@ -353,3 +353,37 @@ def test_repeated_floor_policy_has_no_face_interior_alternation(solution, monkey
     contact = np.asarray(_cached_floor_contacts(config)(params, states, controls))
     np.testing.assert_array_equal(contact, np.ones((periods + 1, 1), dtype=bool))
     distribution_module._cached_distribution_scan.cache_clear()
+
+
+def test_near_floor_band_is_distinct_from_atom_and_preserved_without_snapshots(solution, monkeypatch):
+    floor = solution.config.asset_minimum
+    grid = DistributionGrid(floor, np.array([floor + 0.01, 1.0, 2.0]),
+                            np.array([-0.5, 0.0, 0.5]))
+    params = solution.params._replace(
+        interest_rate=0.0, human_capital_productivity=0.0, human_capital_depreciation=0.0
+    )
+    stationary_solution = replace(solution, params=params)
+
+    def recover(_params, states, _continuation, _policy, _terminal):
+        hours = jnp.full(states.shape[0], 0.5)
+        return jnp.zeros_like(hours), hours * jnp.exp(states[:, 1]), hours, jnp.zeros_like(hours)
+
+    monkeypatch.setattr(distribution_module, "_cached_greedy_kernels",
+                        lambda *args: (recover, None, jax.devices("cpu")[0]))
+    distribution_module._cached_distribution_scan.cache_clear()
+    mass = initialize_distribution(grid, [floor, floor + 0.01, 1.0], 1.0, [0.2, 0.3, 0.5])
+    for snapshots in (False, True):
+        result = simulate_distribution(
+            stationary_solution, grid, mass, participation_hours_threshold=0.02,
+            store_snapshots=snapshots, near_asset_floor_width=0.02,
+        )
+        np.testing.assert_allclose(result.state_moments.asset_floor_mass, 0.2, atol=1e-12)
+        np.testing.assert_allclose(result.state_moments.near_asset_floor_mass, 0.5, atol=1e-12)
+        assert result.state_moments.near_asset_floor_width == 0.02
+        assert result.diagnostics["maximum_full_period_floor_violation"] < 1e-12
+    for width in (0.0, -0.1, float("nan"), float("inf")):
+        with pytest.raises(ValueError, match="near_asset_floor_width"):
+            simulate_distribution(stationary_solution, grid, mass,
+                                  participation_hours_threshold=0.02,
+                                  near_asset_floor_width=width)
+    distribution_module._cached_distribution_scan.cache_clear()

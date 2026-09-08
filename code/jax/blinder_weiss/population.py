@@ -196,6 +196,8 @@ def _cached_cohort_checks(config: BellmanConfig) -> Any:
         minimum_assets = jnp.min(minimum_assets_during_step(
             states[:-1], controls, params, params.horizon / config.periods
         ))
+        if config.asset_feasibility == "continuous":
+            feasible &= minimum_assets >= config.asset_minimum - domain_tolerance
         return earnings, minimum_slack, in_domain, feasible, finite, minimum_assets
 
     return check

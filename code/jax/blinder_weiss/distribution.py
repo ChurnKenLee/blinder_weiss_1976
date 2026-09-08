@@ -368,6 +368,8 @@ def _cached_distribution_scan(
                 & (capacity - consumption >= -1e-8)
             )
             path_minimum = minimum_assets_during_step(states, controls, params, step)
+            if config.asset_feasibility == "continuous":
+                feasible &= path_minimum >= config.asset_minimum - _DOMAIN_TOLERANCE
             occupied = mass > 0
             active_valid = jnp.all(~occupied | (valid & finite & feasible))
             next_running = running & active_valid
