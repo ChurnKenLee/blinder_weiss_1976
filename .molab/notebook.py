@@ -303,7 +303,7 @@ def continuum_intro(mo):
     weighted nodes. Forward transport moves probability mass across the state grid
     as each cohort ages. Both use the same feasible policies and lifecycle dynamics.
 
-    The initial distribution and pilot targets are **synthetic**. Quadrature is
+    The initial distribution and pilot targets are **synthetic**. The working law has continuous initial heterogeneity and a selectable floor component; the interior point atom is an explicit stress-test option. Quadrature is
     the current calibration reference. Forward transport is experimental because
     its moment and boundary-mass errors remain material under refinement. Assets at the
     numerical floor have a separate mass component; nearby interior mass is tracked
@@ -321,7 +321,7 @@ def population_imports(Path, json, np):
         sys.path.insert(0, str(_project / "code/jax"))
 
     from blinder_weiss import (
-        BellmanConfig, BellmanSolution, ModelParams,
+        BellmanConfig, BellmanSolution, ModelParams, InitialAtom,
         SyntheticInitialDistribution, initial_quadrature, simulate_population,
     )
 
@@ -330,7 +330,7 @@ def population_imports(Path, json, np):
         """Read one completed policy checkpoint with its exact numerical settings."""
         import jax
         report = json.loads((folder / "report.json").read_text())
-        config = BellmanConfig(**report["config"])
+        config = BellmanConfig(**{"asset_feasibility": "checkpoints", **report["config"]})
         platform = None if config.compute_platform == "auto" else config.compute_platform
         device = jax.devices(platform)[config.device_index]
         with np.load(folder / "policies.npz") as arrays:
@@ -346,6 +346,7 @@ def population_imports(Path, json, np):
 
 
     return (
+        InitialAtom,
         SyntheticInitialDistribution,
         initial_quadrature,
         load_population_policy,
@@ -356,13 +357,19 @@ def population_imports(Path, json, np):
 @app.cell
 def population_controls(mo):
     population_settings = mo.ui.dictionary({
+        "solution": mo.ui.dropdown(
+            options={"Continuous constraint: 140 periods": "continuous_140",
+                     "Continuous constraint: 280 periods": "continuous_280",
+                     "Historical checkpoints: 140 periods": "checkpoints_140"},
+            value="Continuous constraint: 140 periods", label="Policy solution",
+        ),
         "backend": mo.ui.dropdown(
             options={"Quadrature reference": "quadrature", "Conservative transport": "transport"},
             value="Quadrature reference", label="Population method",
         ),
         "quadrature_order": mo.ui.dropdown(
-            options={"8 × 8": 8, "16 × 16": 16, "32 × 32": 32, "64 × 64": 64},
-            value="16 × 16", label="Initial quadrature",
+            options={"8 × 8": 8, "16 × 16": 16, "32 × 32": 32, "64 × 64": 64, "128 × 128": 128},
+            value="64 × 64", label="Initial quadrature",
         ),
         "transport_resolution": mo.ui.dropdown(
             options={"31 × 31": 31, "61 × 61": 61, "121 × 121": 121},
@@ -372,6 +379,10 @@ def population_controls(mo):
                                     label="Initial Corr(A, log K), interior component"),
         "floor_mass": mo.ui.slider(0.0, 0.2, step=0.01, value=0.05,
                                    label="Initial probability at numerical asset floor"),
+        "point_mass": mo.ui.slider(0.0, 0.1, step=0.01, value=0.0,
+                                   label="Point-atom stress test: probability at (A, K) = (5, 1)"),
+        "near_floor_width": mo.ui.slider(0.002, 0.05, step=0.002, value=0.01,
+                                         label="Near-floor band width (model assets)"),
     }).form(submit_button_label="Simulate population", show_clear_button=False)
     population_settings
     return (population_settings,)
@@ -379,6 +390,7 @@ def population_controls(mo):
 
 @app.cell
 def run_population(
+    InitialAtom,
     SyntheticInitialDistribution,
     benchmark_directory,
     initial_quadrature,
@@ -392,11 +404,16 @@ def run_population(
     from blinder_weiss.distribution import DistributionGrid
 
     _population_inputs = population_settings.value
-    population_solution = load_population_policy(benchmark_directory / "bicubic_asset121_fine")
+    _policy_folder = (benchmark_directory / "bicubic_asset121_fine"
+                      if _population_inputs["solution"] == "checkpoints_140"
+                      else benchmark_directory / "boundary_time_refinement" / _population_inputs["solution"])
+    population_solution = load_population_policy(_policy_folder)
     _population_config = population_solution.config
     population_law = SyntheticInitialDistribution(
         correlation=_population_inputs["correlation"],
         asset_floor_mass=_population_inputs["floor_mass"],
+        atoms=(InitialAtom(5.0, 1.0, _population_inputs["point_mass"]),)
+              if _population_inputs["point_mass"] > 0 else (),
     )
     population_initial_nodes = initial_quadrature(
         population_law, nodes_per_dimension=_population_inputs["quadrature_order"],
@@ -414,13 +431,15 @@ def run_population(
     population_result = simulate_population(
         population_solution, population_initial_nodes, backend=_population_inputs["backend"],
         participation_hours_threshold=0.02, distribution_grid=population_grid,
-        store_snapshots=True,
+        store_snapshots=True, near_asset_floor_width=_population_inputs["near_floor_width"],
     )
     mo.md(f"**Completed {population_result.backend}:** "
           f"{len(population_result.state_moments.time) - 1} decision periods; "
-          f"maximum mass drift {population_result.diagnostics['maximum_mass_drift']:.2e}. "
-          "The initial point atom at (A, K) = (5, 1) has probability 0.05; "
-          "the remaining probability is continuous after accounting for the selected floor mass.")
+          f"maximum mass drift {population_result.diagnostics['maximum_mass_drift']:.2e}; "
+          f"maximum full-period numerical-floor violation "
+          f"{population_result.diagnostics['maximum_full_period_floor_violation']:.2e}. "
+          f"The selected initial point atom has probability {_population_inputs['point_mass']:.0%}. "
+          "The remaining probability is continuous after accounting for the selected floor mass.")
     return population_initial_nodes, population_result
 
 
@@ -499,13 +518,17 @@ def population_moment_view(mo, plt, population_result):
         _axis.plot(population_result.moments.time, getattr(population_result.moments, _field))
         _axis.set(title=_title, xlabel="Model age")
     _moment_axes.ravel()[5].plot(population_result.state_moments.time,
-                                 population_result.state_moments.asset_floor_mass)
-    _moment_axes.ravel()[5].set(title="Probability at numerical asset floor", xlabel="Model age")
+                                 population_result.state_moments.asset_floor_mass, label="Exact endpoint floor contact")
+    _moment_axes.ravel()[5].plot(population_result.state_moments.time,
+        population_result.state_moments.near_asset_floor_mass, "--",
+        label=f"Within {population_result.state_moments.near_asset_floor_width:g} assets of floor")
+    _moment_axes.ravel()[5].set(title="Floor contact and near-floor share", xlabel="Model age")
+    _moment_axes.ravel()[5].legend(fontsize=7)
     for _axis in _moment_axes.ravel():
         _axis.grid(alpha=0.2)
     plt.close(_moment_figure)
     mo.vstack([mo.md("**Unconditional cohort moments.** All initial probability components enter "
-                     "the means. These are model units; model age is not a calendar-age estimate."), _moment_figure])
+                     "the means. Exact floor mass counts period endpoints. The fixed-width band also includes nearby interior states. These are model units; model age is not a calendar-age estimate."), _moment_figure])
     return
 
 
@@ -557,13 +580,12 @@ def floor_spike_attribution(
             _axis.grid(alpha=0.2)
         plt.close(_attribution_fig)
         _floor_explanation = mo.vstack([
-            mo.md("**Why the floor-probability plot spikes.** The default synthetic law places 5% of the population "
-                  "at exactly (A, K) = (5, 1). Everyone in this point atom follows the same path. In the current "
-                  "benchmark that group reaches the numerical floor at model age 13.5, adding exactly five "
-                  "percentage points. The chart counts contact at age boundaries; a contact within a half-year "
-                  "can be missed by this endpoint statistic. The dashed comparison changes the initial distribution "
-                  "by moving the point atom's weight to the continuous component while retaining the initial floor share. "
-                  "It uses the same policies and unsmoothed trajectories."),
+            mo.md(f"**Sensitivity to the initial distribution.** The selected point atom has mass {_point_probability:.0%}. "
+                  "People starting at exactly the same state follow one identical path and can reach the floor together. "
+                  "The historical checkpoint benchmark with a 5% atom produced a five-percentage-point spike at model time 13.5. "
+                  "Continuous feasibility changes when contact occurs; contact inside a period can leave positive endpoint assets. "
+                  "The dashed comparison moves any point-atom weight into the continuous component and retains the initial floor share. "
+                  "Both profiles use the same policies and unsmoothed trajectories. With no point atom selected, the curves coincide."),
             _attribution_fig,
         ])
     _floor_explanation
