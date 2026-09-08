@@ -548,3 +548,30 @@ def test_scalar_fit_hard_evaluation_cap_inside_and_outside_bounds(monkeypatch, m
     assert fit.nfev == len(calls) == len(fit.evaluations) <= maximum
     assert all(bounds[0] <= value <= bounds[1] for value in calls)
     assert fit.fun == min(item.objective.loss for item in fit.evaluations)
+
+
+@pytest.mark.parametrize("maximum", [1, 2])
+def test_initial_law_fit_obeys_same_hard_call_cap(monkeypatch, small_solution, maximum):
+    from types import SimpleNamespace
+
+    import blinder_weiss.calibration as calibration
+
+    calls = []
+
+    def objective(solution, law, targets, **kwargs):
+        calls.append(law.asset_floor_mass)
+        return SimpleNamespace(
+            law=law, objective=SimpleNamespace(loss=(law.asset_floor_mass - 0.04) ** 2)
+        )
+
+    monkeypatch.setattr(calibration, "evaluate_initial_law", objective)
+    fit = calibration.fit_initial_law_calibration(
+        "asset_floor_mass",
+        (0.0, 0.15),
+        solution=small_solution,
+        law=SyntheticInitialDistribution(),
+        targets=synthetic_targets(),
+        nodes_per_dimension=2,
+        max_evaluations=maximum,
+    )
+    assert fit.nfev == len(calls) == len(fit.evaluations) <= maximum

@@ -203,6 +203,28 @@ def evaluate_calibration(
     )
 
 
+def _bounded_scalar_search(objective, bounds, parameter_tolerance, maximum):
+    """Apply a hard call cap, including SciPy's maxiter=1 corner case."""
+    from scipy.optimize import OptimizeResult, minimize_scalar
+
+    if maximum == 1:
+        value = bounds[0] + 0.5 * (3.0 - np.sqrt(5.0)) * (bounds[1] - bounds[0])
+        return OptimizeResult(
+            x=value,
+            fun=objective(value),
+            success=False,
+            status=1,
+            nfev=1,
+            message="Evaluation budget exhausted after one bounded-search candidate.",
+        )
+    return minimize_scalar(
+        objective,
+        bounds=bounds,
+        method="bounded",
+        options={"xatol": parameter_tolerance, "maxiter": maximum},
+    )
+
+
 def fit_scalar_calibration(
     parameter: str,
     bounds: tuple[float, float],
@@ -228,7 +250,7 @@ def fit_scalar_calibration(
     Fix shape/domain parameters: this routine estimates ModelParams fields only.
     """
 
-    from scipy.optimize import OptimizeResult, minimize_scalar
+    from scipy.optimize import OptimizeResult
 
     if parameter not in params._fields or parameter in {"horizon", "asset_floor"}:
         raise ValueError("parameter must be a ModelParams field other than horizon or asset_floor")
@@ -266,26 +288,7 @@ def fit_scalar_calibration(
     remaining = max_evaluations - len(evaluations)
     result: Any
     if remaining:
-        if remaining == 1:
-            # SciPy's bounded implementation can perform two calls at maxiter=1.
-            # Evaluate its initial golden-section candidate ourselves at this cap.
-            value = bounds[0] + 0.5 * (3.0 - np.sqrt(5.0)) * (bounds[1] - bounds[0])
-            loss = objective(value)
-            result = OptimizeResult(
-                x=value,
-                fun=loss,
-                success=False,
-                status=1,
-                nfev=1,
-                message="Evaluation budget exhausted after one bounded-search candidate.",
-            )
-        else:
-            result = minimize_scalar(
-                objective,
-                bounds=bounds,
-                method="bounded",
-                options={"xatol": parameter_tolerance, "maxiter": remaining},
-            )
+        result = _bounded_scalar_search(objective, bounds, parameter_tolerance, remaining)
         result.raw_optimizer = {
             key: result[key] for key in ("x", "fun", "success", "status", "message", "nfev")
         }
@@ -385,8 +388,6 @@ def fit_initial_law_calibration(
     These fits need observed initial-distribution/state information to identify
     initial heterogeneity separately from structural preferences/technology.
     """
-    from scipy.optimize import minimize_scalar
-
     if len(bounds) != 2 or not np.all(np.isfinite(bounds)) or bounds[0] >= bounds[1]:
         raise ValueError("bounds must be finite and strictly ordered")
     if not np.isfinite(parameter_tolerance) or parameter_tolerance <= 0:
@@ -424,12 +425,7 @@ def fit_initial_law_calibration(
         evaluations.append(evaluation)
         return evaluation.objective.loss
 
-    fit: Any = minimize_scalar(
-        objective,
-        bounds=bounds,
-        method="bounded",
-        options={"xatol": parameter_tolerance, "maxiter": max_evaluations},
-    )
+    fit: Any = _bounded_scalar_search(objective, bounds, parameter_tolerance, max_evaluations)
     fit.evaluations = evaluations
     fit.best_evaluation = min(evaluations, key=lambda evaluation: evaluation.objective.loss)
     fit.parameter_name, fit.atom_index = parameter, atom_index

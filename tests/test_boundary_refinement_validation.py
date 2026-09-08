@@ -134,3 +134,46 @@ def test_common_physical_sampling_does_not_confuse_time_step_and_policy_changes(
         np.testing.assert_allclose(first[0][key], second[0][key], rtol=1e-12, atol=1e-13)
     np.testing.assert_allclose(first[1], second[1], rtol=1e-12, atol=1e-13)
     np.testing.assert_array_equal(first[2], second[2])
+
+
+def test_saved_population_measurements_preserve_weights_and_reject_mismatched_states():
+    from types import SimpleNamespace
+
+    time = np.array([0.0, 0.5, 1.0])
+    states = np.array(
+        [[[3.0, 0.1], [4.0, -0.2]], [[2.9, 0.08], [3.8, -0.22]], [[2.8, 0.06], [3.6, -0.24]]]
+    )
+    controls = np.broadcast_to(np.array([[0.4, 0.5, 0.1], [0.3, 0.4, 0.0]]), (2, 2, 3))
+    weights = np.array([0.3, 0.7])
+    nodes = SimpleNamespace(
+        assets=states[0, :, 0], human_capital=np.exp(states[0, :, 1]), weights=weights
+    )
+    solution = SimpleNamespace(time=time)
+    arrays = {
+        "run_0_time": time,
+        "run_0_states": states,
+        "run_0_controls": controls,
+        "run_0_policy_values": np.zeros((2, 2)),
+        "run_0_native_floor_mass": np.zeros(3),
+    }
+    recovered = _MODULE.population_from_saved(
+        solution, nodes, {"array_prefix": "run_0"}, arrays, Path("validated_report.json")
+    )
+    np.testing.assert_array_equal(recovered.simulation.states, states)
+    np.testing.assert_allclose(recovered.moments.consumption, controls[..., 0] @ weights)
+    np.testing.assert_allclose(recovered.state_moments.assets, states[..., 0] @ weights)
+    mismatched = SimpleNamespace(
+        assets=nodes.assets + 1e-3, human_capital=nodes.human_capital, weights=weights
+    )
+    with pytest.raises(ValueError, match="initial states"):
+        _MODULE.population_from_saved(
+            solution, mismatched, {"array_prefix": "run_0"}, arrays, Path("validated_report.json")
+        )
+    with pytest.raises(ValueError, match="time grid"):
+        _MODULE.population_from_saved(
+            SimpleNamespace(time=time + 0.01),
+            nodes,
+            {"array_prefix": "run_0"},
+            arrays,
+            Path("validated_report.json"),
+        )
