@@ -380,6 +380,7 @@ def test_near_floor_band_is_distinct_from_atom_without_snapshots(solution, monke
             store_snapshots=snapshots, near_asset_floor_width=0.02,
         )
         np.testing.assert_allclose(result.state_moments.asset_floor_mass, 0.2, atol=1e-12)
+        assert result.state_moments.near_asset_floor_mass is not None
         np.testing.assert_allclose(result.state_moments.near_asset_floor_mass, 0.5, atol=1e-12)
         assert result.state_moments.near_asset_floor_width == 0.02
         assert result.diagnostics["maximum_full_period_floor_violation"] < 1e-12
