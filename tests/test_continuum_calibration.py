@@ -75,6 +75,8 @@ def test_quadrature_refinement_and_zero_components_preserve_shapes():
         {"asset_lower": -1.0},
         {"log_human_capital_lower": 1.0},
         {"asset_upper": np.inf},
+        {"log_human_capital_upper": 1000.0},
+        {"log_human_capital_lower": -1000.0},
         {"atoms": (InitialAtom(1, 0, 0.1),)},
     ],
 )
@@ -217,3 +219,16 @@ def test_quadrature_rollout_preserves_mass_and_initial_floor_atom():
     np.testing.assert_allclose(
         result.state_moments.assets, result.simulation.assets @ nodes.weights
     )
+
+
+def test_initial_near_floor_mass_remains_interior():
+    from blinder_weiss.continuum import _cached_floor_contacts
+
+    config = BellmanConfig(periods=1, asset_minimum=0.001, compute_platform="cpu")
+    params = benchmark_params(horizon=1.0)
+    near_floor = config.asset_minimum + 5e-11
+    states = np.array([[[near_floor, 0.0]], [[near_floor, 0.0]]])
+    controls = np.array([[[1e-9, 0.5, 0.0]]])
+    contacts = np.asarray(_cached_floor_contacts(config)(params, states, controls))
+    assert not contacts[0, 0]
+    assert not contacts[1, 0]

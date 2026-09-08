@@ -102,6 +102,10 @@ def _validate_initial_law(law: SyntheticInitialDistribution, asset_floor: float)
         raise ValueError("asset interval must be ordered and above the supplied asset floor")
     if not law.log_human_capital_lower < law.log_human_capital_upper:
         raise ValueError("log human capital interval must be strictly ordered")
+    with np.errstate(over="ignore", under="ignore"):
+        capital_bounds = np.exp([law.log_human_capital_lower, law.log_human_capital_upper])
+    if not np.all(np.isfinite(capital_bounds)) or np.any(capital_bounds <= 0.0):
+        raise ValueError("log capital bounds must exponentiate to finite positive human capital")
     if abs(law.correlation) > 1.0 / 3.0:
         raise ValueError("continuous-component correlation must lie in [-1/3, 1/3]")
     if law.asset_floor_mass < 0.0:
