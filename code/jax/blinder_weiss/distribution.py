@@ -166,6 +166,7 @@ def _transport_stencil(
     finite = jnp.all(jnp.isfinite(destinations), axis=-1)
     valid = finite & jnp.all(violations <= _DOMAIN_TOLERANCE, axis=-1)
     valid &= ~on_asset_floor | (jnp.abs(assets - asset_floor) <= _DOMAIN_TOLERANCE)
+    valid &= (assets >= asset_floor) | on_asset_floor
     # Invalid rows carry zero weight. Clipping below handles roundoff only for
     # valid rows; it never silently reflects/absorbs a material exit.
     safe_assets = jnp.where(valid, assets, interior_assets[0])

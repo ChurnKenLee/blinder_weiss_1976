@@ -8,6 +8,8 @@ import numpy as np
 import pytest
 from blinder_weiss import BellmanConfig, benchmark_params, solve_bellman
 from blinder_weiss import distribution as distribution_module
+from blinder_weiss.bellman import _exprel, constant_control_transition, maximum_feasible_consumption
+from blinder_weiss.boundary import endpoint_floor_contact
 from blinder_weiss.distribution import (
     DistributionDomainError,
     DistributionGrid,
@@ -242,4 +244,116 @@ def test_compiled_scan_enters_moves_along_and_leaves_floor(solution, monkeypatch
                                atol=1e-14)
     assert result.masses is not None
     np.testing.assert_allclose(result.masses.sum(axis=(1, 2)), 1, atol=1e-14)
+    distribution_module._cached_distribution_scan.cache_clear()
+
+
+
+def test_actual_binding_checkpoint_policy_uses_asset_roundoff_scale():
+    params = benchmark_params()
+    floors = jnp.geomspace(1e-4, 1e-2, 257)
+
+    @jax.jit
+    def contacts(current_params, current_floors):
+        def one(floor):
+            state = jnp.array([[floor, 0.0]])
+            hours = jnp.zeros(1)
+            capacity = maximum_feasible_consumption(
+                state[:, 0], state[:, 1], hours, hours, current_params, 0.5, floor, 4
+            )
+            endpoint = maximum_feasible_consumption(
+                state[:, 0], state[:, 1], hours, hours, current_params, 0.5, floor, 1
+            )
+            next_assets = constant_control_transition(
+                state, jnp.stack((capacity, hours, hours), axis=-1), current_params, 0.5
+            )[:, 0]
+            old_contact = (next_assets <= floor) | (capacity >= endpoint)
+            contact = endpoint_floor_contact(
+                next_assets, floor, capacity, endpoint,
+                0.5 * _exprel(current_params.interest_rate * 0.5),
+            )
+            return old_contact[0], contact[0]
+        return jax.vmap(one)(current_floors)
+
+    old, fixed = map(np.asarray, contacts(params, floors))
+    # These are actual feasible controls maintaining A=floor: c=r*floor,
+    # h=q=0. The old bit-for-bit comparison loses contacts solely to rounding.
+    assert np.any(~old)
+    np.testing.assert_array_equal(fixed, np.ones(floors.size, dtype=bool))
+
+
+def test_slack_control_near_floor_is_still_interior():
+    params = benchmark_params()
+    floor = 1e-4
+    state = jnp.array([[floor, 0.0]])
+    zero = jnp.zeros(1)
+    endpoint = maximum_feasible_consumption(
+        state[:, 0], state[:, 1], zero, zero, params, 0.5, floor, 1
+    )
+    # Meaningful slack is tiny in economic units but many arithmetic ulps.
+    consumption = endpoint - 1e-12
+    destination = constant_control_transition(
+        state, jnp.stack((consumption, zero, zero), axis=-1), params, 0.5
+    )
+    assert float(destination[0, 0]) > floor
+    assert not bool(endpoint_floor_contact(
+        destination[:, 0], floor, consumption, endpoint,
+        0.5 * _exprel(params.interest_rate * 0.5),
+    )[0])
+
+
+def test_repeated_floor_policy_has_no_face_interior_alternation(solution, monkeypatch):
+    from blinder_weiss.continuum import _cached_floor_contacts
+
+    periods = 140
+    params = solution.params._replace(horizon=70.0)
+    config = replace(solution.config, periods=periods)
+    policy_shape = (periods, *solution.consumption_policy.shape[1:])
+    artificial = replace(
+        solution, params=params, config=config, time=np.linspace(0, 70, periods + 1),
+        values=np.zeros((periods + 1, *solution.values.shape[1:])),
+        consumption_policy=np.zeros(policy_shape), hours_policy=np.zeros(policy_shape),
+        training_time_policy=np.zeros(policy_shape),
+    )
+    grid = DistributionGrid(config.asset_minimum, np.array([0.001001, 0.5, 2.0, 5.0]),
+                            np.linspace(-5, 1, 25))
+    # The baseline Bellman box is narrow only in this small fixture; the
+    # supplied policy is known analytically and the independent test domain
+    # covers 70 years of human-capital depreciation.
+    artificial = replace(artificial, log_human_capital_grid=np.linspace(-5, 1, 5))
+
+    def recover(current_params, states, _continuation, _policy, _terminal):
+        zero = jnp.zeros(states.shape[0])
+        capacity = maximum_feasible_consumption(
+            states[:, 0], states[:, 1], zero, zero, current_params, 0.5,
+            config.asset_minimum, config.path_checkpoints,
+        )
+        return zero, capacity, zero, zero
+
+    monkeypatch.setattr(distribution_module, "_cached_greedy_kernels",
+                        lambda *args: (recover, None, jax.devices("cpu")[0]))
+    distribution_module._cached_distribution_scan.cache_clear()
+    mass = initialize_distribution(grid, config.asset_minimum, 1.0)
+    result = simulate_distribution(
+        artificial, grid, mass, participation_hours_threshold=0.01, store_snapshots=True
+    )
+    np.testing.assert_allclose(result.state_moments.asset_floor_mass, 1, atol=1e-13)
+    np.testing.assert_allclose(result.diagnostics["stayed_asset_floor_mass"], 1, atol=1e-13)
+    np.testing.assert_array_equal(result.diagnostics["left_asset_floor_mass"], 0)
+    np.testing.assert_array_equal(result.diagnostics["lower_interior_remap_mass"], 0)
+
+    @jax.jit
+    def exact_path(current_params):
+        def step(state, _):
+            _, c, h, q = recover(current_params, state, None, None, None)
+            controls = jnp.stack((c, h, q), axis=-1)
+            destination = constant_control_transition(state, controls, current_params, 0.5)
+            return destination, (state, controls)
+        terminal, (states, controls) = jax.lax.scan(
+            step, jnp.array([[config.asset_minimum, 0.0]]), None, length=periods
+        )
+        return jnp.concatenate((states, terminal[None, ...])), controls
+
+    states, controls = exact_path(params)
+    contact = np.asarray(_cached_floor_contacts(config)(params, states, controls))
+    np.testing.assert_array_equal(contact, np.ones((periods + 1, 1), dtype=bool))
     distribution_module._cached_distribution_scan.cache_clear()
