@@ -260,6 +260,7 @@ def fit_scalar_calibration(
         objective(initial_value)
         incumbent = evaluations[-1]
     remaining = max_evaluations - len(evaluations)
+    result: Any
     if remaining:
         result = minimize_scalar(
             objective,

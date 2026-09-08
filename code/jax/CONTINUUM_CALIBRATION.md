@@ -18,8 +18,13 @@ and log human capital, with continuous-component joint density proportional to
 `1 + 3*correlation*(2*u-1)*(2*v-1)` for unit coordinates `u,v`. The supported
 correlation is `Corr(A, log K)` in `[-1/3,1/3]`. Adding a floor-face component or
 point atoms changes the mixture's overall correlation. The default law places
-90% in assets `[2,8]` and log human capital `[-0.25,0.25]`, 5% on the numerical
-asset floor with uniform log human capital, and 5% at `(A,K)=(5,1)`.
+95% in assets `[2,8]` and log human capital `[-0.25,0.25]`, and 5% on the
+numerical asset floor with uniform log human capital. There is no default
+interior point atom. `synthetic_initial_scenarios()["point_atom_stress"]`
+explicitly moves 5% from the continuous component to `(A,K)=(5,1)`; this is a
+stress scenario, not an empirically estimated concentration. Other named
+scenarios vary the floor share or initial correlation. Nodes retain the exact
+initial-law specification and quadrature order for comparison provenance.
 
 `initial_quadrature` uses a tensor Gauss–Legendre rule for the continuous
 component and one-dimensional quadrature for the floor face. Point atoms are
@@ -70,7 +75,15 @@ a density requires cell volumes and a Jacobian when changing from log K to K.
 ## Calibration interface
 
 `simulate_population` exposes `quadrature`, `cohort`, and `transport` through
-common control and state moment profiles. Quadrature is the reference default;
+common control and state moment profiles. An optional positive
+`near_asset_floor_width` measures the probability of assets in the inclusive
+band `[numerical_floor, numerical_floor + width]`, at every age boundary. This
+includes the exact floor mass and strictly interior near-floor mass. Keep the
+width fixed in model asset units across numerical grids and time steps;
+`CalibrationTargets.near_asset_floor_width` must match it exactly. Exact
+`asset_floor_mass` remains a separately reported endpoint-contact statistic.
+An interior contact during a period need not leave mass on the floor at its
+endpoint. Quadrature is the reference default;
 transport remains opt-in until numerical tolerances have been established.
 Control means and earnings refer to decision-period starts. States include
 the terminal age. Participation is explicitly `h > threshold`; training is
@@ -89,8 +102,24 @@ Age interpolation is explicit, extrapolation is rejected, and terminal-age
 control targets are invalid. Observation weights are not an implicit age
 distribution. `evaluate_calibration` runs the complete solve, population
 simulation, and loss. `fit_scalar_calibration` provides bounded derivative-free
-fitting with recorded evaluations. Discrete policy and participation switches
-can make the loss irregular; autodiff gradients are not certified.
+fitting with recorded evaluations. The supplied initial parameter is evaluated
+first when it lies within the bounds, and the returned `x`/`fun` retain the best
+actually evaluated candidate. `selection_source` records whether this was the
+initial parameter or the bounded search; `raw_optimizer` preserves the search
+candidate and its termination. The evaluation cap includes the initial
+candidate. Successful termination does not establish global optimality.
+Discrete policy and participation switches can make the loss irregular;
+autodiff gradients are not certified.
+
+`evaluate_initial_law` and `fit_initial_law_calibration` reuse a fixed structural
+policy solution to vary initial heterogeneity. Supported scalar inputs include
+asset/log-capital support endpoints, continuous-component correlation,
+`asset_floor_mass`, and `atom_mass` at an explicitly supplied atom index/location.
+Bounds must preserve a valid probability law and remain inside the Bellman
+domain. Point atoms are never inserted implicitly by a fit. These inputs can be
+estimated only with identifying measurements; structural parameters and the
+initial law may otherwise offset each other. The synthetic sensitivity output
+is a numerical exercise, not a claim of joint empirical identification.
 
 ## Acceptance and remaining work
 
@@ -106,7 +135,51 @@ from floor atoms. These errors must be judged against empirical uncertainty and
 the loss changes the calibration optimizer needs to resolve. The full design
 and acceptance criteria remain in [CONTINUUM_FORWARD_MEMO.md](../../CONTINUUM_FORWARD_MEMO.md).
 
-## Measured GPU pilot (2026-09-08)
+## Calibration stability across resolutions
+
+`tools/benchmark_calibration_stability.py` constructs one synthetic target from
+the finest requested time solution and quadrature order. All fits use that same
+target at common ages; targets are not regenerated to fit each discretization.
+The target includes a fixed-width near-floor band, while exact endpoint floor
+mass is saved for diagnosis. The tool also reports initial-law stress scenarios
+and optionally fits the floor share while reusing the structural policy.
+
+`compare_calibration_resolutions` requires the same structural parameters and
+explicit initial law, genuinely different numerical settings, successful
+optimizer termination, full-period asset-floor feasibility, and agreement of
+moments, loss, and fitted parameters within explicit tolerances. Device,
+platform, batch size, and inactive continuous-mode checkpoint settings do not
+count as distinct resolutions. Moment differences are divided by target
+residual scales, and only positive-weight target observations enter the test.
+Default illustrative thresholds in the tool are 0.1 residual-scale units,
+0.001 loss units, 0.002 parameter units, and 1e-10 model assets for path
+feasibility. These are numerical choices, not survey standard errors.
+
+```bash
+PYTHONPATH=code/jax JAX_PLATFORMS=cpu python tools/benchmark_calibration_stability.py \
+  --periods 4 8 --orders 4 8 16 --fit-initial-law \
+  --output output/solver_benchmarks/calibration_stability_cpu
+```
+
+The deliberately small CPU model fails the comparisons across its 4/8-period
+and 4/8/16-order resolutions. This is expected evidence that a coarse model
+cannot be accepted merely because a same-resolution synthetic fit looks good.
+The pilot also exposed an optimizer limitation: the bounded search could return
+a positive loss despite the already supplied parameter having zero loss. The
+fit now preserves that incumbent and reports the raw search separately; keeping
+a known parameter is not evidence of recovery. Initial floor-share sensitivity
+uses the same fixed policy and recovers its known synthetic share, which only
+checks that numerical path. Further time, state-grid, quadrature, floor, and
+domain refinement remain necessary before empirical calibration.
+
+## Historical checkpoint GPU pilot (2026-09-08)
+
+The following saved results use the historical checkpoint feasibility rule and
+an initial law with 90% continuous mass, 5% floor mass, and the explicit 5%
+interior point atom. They do not describe the current continuous-feasibility,
+95%/5% default. Retain the original law and `asset_feasibility="checkpoints"`
+when reproducing them. The current continuous rule is described in
+[CONTINUOUS_ASSET_FEASIBILITY.md](CONTINUOUS_ASSET_FEASIBILITY.md).
 
 The [completed comparison](../../output/solver_benchmarks/continuum_gpu/report.json)
 uses the refined 121×79 Bellman grid with 140 decision periods. All three
@@ -187,6 +260,8 @@ mass propagation, moment reduction, and loss.
 PYTHONPATH=code/jax python tools/benchmark_continuum.py \
   --platform gpu \
   --config-report output/solver_benchmarks/bicubic_asset121_fine/report.json \
+  --asset-feasibility checkpoints \
+  --initial-law-report output/solver_benchmarks/continuum_gpu/report.json \
   --quadrature 8 16 32 64 --distribution 31 61 121 \
   --fit-evaluations 30 --output output/solver_benchmarks/continuum_gpu
 ```
