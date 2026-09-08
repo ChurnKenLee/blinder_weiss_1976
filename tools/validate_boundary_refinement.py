@@ -684,7 +684,10 @@ def main():
     report["limitations"] = [
         "Checkpoint policies may earn higher utility by violating the continuous constraint.",
         "The finest time grid is a numerical reference, not converged truth.",
-        "Only explicitly declared time/asset settings change; control search, quadrature, and domain remain fixed.",
+        (
+            "Only explicitly declared time/asset settings change; "
+            "control search, quadrature, and domain remain fixed."
+        ),
         "Standardized loss scales are numerical choices, not survey uncertainty estimates.",
     ]
     _write_json(args.output / "report.json", report)
