@@ -673,7 +673,8 @@ def continuum_benchmark_table(
                 "Mass drift": _result.get("diagnostics", {}).get("maximum_mass_drift"),
             })
     mo.vstack([
-        mo.md("**Population resolution comparison.** Differences use the highest quadrature order "
+        mo.md("**Historical population resolution comparison.** This saved run uses the 140-period, "
+              "121-asset checkpoint policy and an explicit 5% interior point atom. Differences use the highest quadrature order "
               "in the saved run. Completion means the numerical checks passed; transport remains "
               "an optional approximation pending moment convergence."),
         mo.ui.table(_rows, selection=None) if _rows else mo.md("The GPU comparison is being prepared."),
@@ -695,16 +696,18 @@ def synthetic_calibration_view(continuum_benchmark_report, mo, plt):
         _fit_axis.plot([_item["leisure_weight"] for _item in _evaluations],
                        [_item["loss"] for _item in _evaluations], "o-")
         _fit_axis.axvline(_fit["known_leisure_weight"], color="black", ls=":", label="Known synthetic value")
-        _fit_axis.set(xlabel="Leisure weight", ylabel="Scaled moment loss", title="Synthetic parameter recovery")
+        _fit_axis.set(xlabel="Leisure weight", ylabel="Scaled moment loss", title="Historical synthetic parameter recovery")
         _fit_axis.grid(alpha=0.2)
         _fit_axis.legend()
         plt.close(_fit_figure)
         _calibration_display = mo.vstack([
-            mo.md(f"**Synthetic calibration pilot:** known leisure weight {_fit['known_leisure_weight']:.6f}; "
+            mo.md(f"**Historical synthetic calibration pilot:** known leisure weight {_fit['known_leisure_weight']:.6f}; "
                   f"fitted {_fit['fitted_leisure_weight']:.6f}; "
                   f"absolute error {_fit['absolute_parameter_error']:.2e}. "
                   f"Optimizer success: {_fit['optimizer_success']}. "
-                  "Targets come from the same model with refined quadrature. This checks the fitting pipeline; "
+                  "This saved result uses the 140-period, 121-asset checkpoint policy, a 5% interior point atom, "
+                  "and the earlier optimizer. The current fitter also evaluates the supplied parameter and retains it "
+                  "when its loss is lower. Targets come from the same model with refined quadrature. This checks the fitting pipeline; "
                   "it does not estimate survey parameters or establish identification."),
             _fit_figure,
         ])
