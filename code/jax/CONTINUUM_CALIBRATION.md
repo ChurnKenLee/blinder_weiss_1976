@@ -106,6 +106,25 @@ from floor atoms. These errors must be judged against empirical uncertainty and
 the loss changes the calibration optimizer needs to resolve. The full design
 and acceptance criteria remain in [CONTINUUM_FORWARD_MEMO.md](../../CONTINUUM_FORWARD_MEMO.md).
 
+## Boundary accuracy in the lifecycle benchmark
+
+The rounding fix does not eliminate all floor-mass cycling. At the initial
+state `(A,log K)=(0.0001,0)`, the recovered consumption binds the first
+within-period checkpoint. Later earnings growth leaves endpoint assets about
+0.0015003 above the floor. This is a real positive destination, roughly twelve
+orders of magnitude larger than the contact error budget. The 121-node
+transport grid's first interior gap is about 0.0024305; projecting the true
+destination upward changes the following policy, which then reaches the floor.
+The 61-node grid has a related cycle. The quadrature paths retain the actual
+positive destination.
+
+This is a measured interaction between the period's constant controls and the
+first-interior-cell remapping. Increasing the boundary tolerance would create
+incorrect floor mass. Further distribution-grid design and separate time-step
+refinement are needed; both the interior remapping bias and outer-cell exposure
+remain visible in diagnostics. Floor mass is measured at age boundaries, and
+an interior checkpoint contact does not by itself create an endpoint atom.
+
 ## Reproduce the comparison
 
 The benchmark re-solves the supplied numerical configuration and uses the same
