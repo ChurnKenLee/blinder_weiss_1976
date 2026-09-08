@@ -712,5 +712,54 @@ def synthetic_calibration_view(continuum_benchmark_report, mo, plt):
     return
 
 
+@app.cell
+def calibration_stability_view(
+    benchmark_directory,
+    github_sync_refresh,
+    json,
+    mo,
+):
+    github_sync_refresh
+    _stability_path = benchmark_directory / "calibration_stability_gpu" / "report.json"
+    mo.stop(not _stability_path.exists(), mo.md("The production calibration stability run is preparing its fixed target."))
+    calibration_stability_report = json.loads(_stability_path.read_text())
+    _calibration_rows = []
+    for _name, _run in calibration_stability_report.get("resolutions", {}).items():
+        _trace = _run.get("fit_trace", [])
+        _calibration_rows.append({
+            "Resolution": _name,
+            "Asset nodes": _run.get("asset_nodes"),
+            "Status": "completed" if "optimizer_success" in _run else "running",
+            "Parameter evaluations": len(_trace),
+            "Initial-parameter loss": _run.get("baseline_loss_against_fixed_target"),
+            "Best fitted parameter": _run.get("fitted_parameter"),
+            "Fitted loss": _run.get("fitted_loss"),
+            "Candidate selected from": _run.get("selection_source"),
+        })
+    _acceptance_rows = []
+    for _name, _check in calibration_stability_report.get("comparisons", {}).items():
+        _acceptance_rows.append({
+            "Comparison with finest reference": _name,
+            "Within all tolerances": _check["passed"],
+            "Largest moment change / target scale": _check["maximum_standardized_moment_difference"],
+            "Loss change": _check["absolute_loss_difference"],
+            "Fitted parameter change": _check["absolute_fitted_parameter_difference"],
+        })
+    _initial_fit = calibration_stability_report.get("initial_law_fit")
+    _initial_note = (f"Initial-floor-share fit: {_initial_fit['fitted_value']:.6f}; "
+                     f"known synthetic share {_initial_fit['known_value']:.6f}."
+                     if _initial_fit else "Initial-distribution fitting follows the structural comparisons.")
+    mo.vstack([
+        mo.md("**Calibration stability under refinement.** Every resolution uses one fixed synthetic target from "
+              "the finest time/state grid and quadrature rule. The supplied parameter is retained if it beats the "
+              "bounded search; its selection is reported explicitly. Acceptance checks compare moments, loss, fitted "
+              "parameters, and full-period feasibility. The tolerances are numerical choices and are not survey standard errors."),
+        mo.ui.table(_calibration_rows, selection=None),
+        mo.ui.table(_acceptance_rows, selection=None) if _acceptance_rows else mo.md("Resolution acceptance checks follow the completed fits."),
+        mo.md(_initial_note),
+    ])
+    return
+
+
 if __name__ == "__main__":
     app.run()
