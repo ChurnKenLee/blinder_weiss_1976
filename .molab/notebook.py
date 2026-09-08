@@ -831,7 +831,9 @@ def calibration_stability_view(
               f"{calibration_stability_report['thresholds']['maximum_standardized_moment_difference']:g}; "
               f"loss change {calibration_stability_report['thresholds']['maximum_loss_difference']:g}; "
               f"parameter change {calibration_stability_report['thresholds']['maximum_parameter_difference']:g}. "
-              "A passing comparison provides local stability evidence for the tested resolutions."),
+              "These checks compare moments and loss at the supplied parameter, plus the fitted parameter values. "
+              "A passing comparison provides local stability evidence for the tested resolutions; it does not "
+              "validate the loss across the whole fitting interval. The traces show all evaluated candidates."),
     ])
     return
 
