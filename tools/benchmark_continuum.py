@@ -97,11 +97,19 @@ def main():
     parser.add_argument("--quadrature", type=int, nargs="+", default=[4, 8, 16])
     parser.add_argument("--distribution", type=int, nargs="*", default=[9, 17, 33])
     parser.add_argument("--people", type=int, default=256)
+    parser.add_argument(
+        "--distribution-asset-curvature",
+        type=float,
+        default=2.0,
+        help="Independent forward asset-grid curvature; Bellman grid is unchanged",
+    )
     parser.add_argument("--fit-evaluations", type=int, default=8)
     parser.add_argument("--skip-perturbations", action="store_true")
     args = parser.parse_args()
     if min(args.quadrature) < 2 or args.people < 1 or args.fit_evaluations < 0:
         parser.error("positive population sizes (quadrature >=2) and fit-evaluations >=0 required")
+    if not np.isfinite(args.distribution_asset_curvature) or args.distribution_asset_curvature <= 0:
+        parser.error("distribution asset curvature must be finite and positive")
     if any(size < 3 for size in args.distribution):
         parser.error("distribution grids require at least three nodes per dimension")
     if args.config_report:
@@ -138,6 +146,7 @@ def main():
         "config": asdict(config),
         "params": params._asdict(),
         "initial_law": asdict(law),
+        "distribution_asset_curvature": args.distribution_asset_curvature,
         "seed": 125,
         "source_sha256": {
             path.name: hashlib.sha256(path.read_bytes()).hexdigest()
@@ -197,7 +206,7 @@ def main():
                 config.asset_minimum,
                 config.asset_minimum
                 + (config.asset_maximum - config.asset_minimum)
-                * np.linspace(0.0, 1.0, size)[1:] ** config.asset_grid_curvature,
+                * np.linspace(0.0, 1.0, size)[1:] ** args.distribution_asset_curvature,
                 np.linspace(
                     config.log_human_capital_minimum, config.log_human_capital_maximum, size
                 ),
