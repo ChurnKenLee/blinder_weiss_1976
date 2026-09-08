@@ -196,7 +196,7 @@ def _hash(path):
 
 def _write_json(path, data):
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(data, indent=2, allow_nan=False) + "\n")
+    temporary.write_text(json.dumps(data, indent=2, allow_nan=False, default=lambda value: value.item()) + "\n")
     temporary.replace(path)
 
 
@@ -421,6 +421,9 @@ def main():
             "maximum_absolute_value_gap": float(np.max(np.abs(sim.policy_values[0] - utility))),
             "weighted_retirement_euler_rms_per_year": pooled_rms,
             "weighted_eligible_retired_pairs": mass,
+            "weighted_eligible_retired_pair_years": (
+                mass * solution.params.horizon / solution.config.periods
+            ),
             "minimum_log_human_capital": float(sim.log_human_capital.min()),
             "maximum_log_human_capital": float(sim.log_human_capital.max()),
         }
