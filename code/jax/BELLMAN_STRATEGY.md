@@ -1,3 +1,13 @@
+# Continuous asset feasibility update
+
+The default solver now uses `asset_feasibility="continuous"`, enforcing the
+asset floor over the whole constant-control period with an analytic path
+minimum and a scalar binding-time solve. The finite-checkpoint derivation
+below describes the retained `"checkpoints"` compatibility mode. See
+[continuous asset feasibility](CONTINUOUS_ASSET_FEASIBILITY.md) for the exact
+bound, its envelope gradients, new path-minimum diagnostics, and validation.
+Time and numerical-floor convergence remain necessary in both modes.
+
 # Feedback policies from semi-Lagrangian Bellman recursion
 
 ## Purpose
@@ -244,8 +254,9 @@ The code uses
 
 over configurable within-period checkpoints and parameterizes consumption as
 a fraction of that capacity. Thus node controls satisfy the borrowing limit
-by construction at every checkpoint. This is much more stable than guessing a
-finite-difference condition for (V_A) at (A=\underline A).
+by construction at every checkpoint in legacy mode. The default full-period
+bound replaces this finite minimum with the infimum over all times. Both
+parameterizations avoid guessing a finite-difference condition for (V_A) at (A=\underline A).
 
 The benchmark bequest utility has a negative power and is singular at zero.
 For that reason, the Bellman domain starts at a small positive numerical value,

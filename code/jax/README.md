@@ -114,10 +114,14 @@ bilinearly interpolated.
 At each state node, a memory-bounded global control search retains several
 leading candidates, then applies projected, bias-corrected autodiff refinement
 with per-state backtracking to every start. The next-age policy is included as
-a warm candidate. The largest feasible consumption is calculated from the
-asset floor at multiple within-period checkpoints, so the borrowing constraint
-enters the control set rather than a guessed boundary derivative. Candidate
-transitions outside the represented state domain are rejected.
+a warm candidate. The largest feasible consumption now enforces the asset
+floor over the entire constant-control interval, using its analytic path
+minimum and a monotone scalar binding-time solve where necessary. This closes
+between-checkpoint dips. The explicit `asset_feasibility="checkpoints"` mode
+replays the previous approximation. See
+[continuous asset feasibility](CONTINUOUS_ASSET_FEASIBILITY.md) for the
+formulas, gradient treatment, and compatibility rules. Candidate transitions
+outside the represented state domain are rejected.
 
 After local refinement, configurable bidirectional neighboring-policy sweeps
 evaluate the absolute controls selected at adjacent states. A feasible
@@ -133,8 +137,8 @@ containment. State, control, time, and domain convergence remain necessary.
 `solve_bellman_converged()` performs that convergence exercise automatically.
 It treats the supplied `BellmanConfig` domain as the target region, solves on
 progressively larger computational domains, and jointly refines periods,
-states, controls, constraint checkpoints, local-search starts, and refinement
-steps. Success requires two consecutive common-grid comparisons to satisfy the
+states, controls, local-search starts, and refinement steps (and constraint
+checkpoints in legacy feasibility mode). Success requires two consecutive common-grid comparisons to satisfy the
 documented value, policy-regret, optimizer, shape, feasibility, and containment
 criteria. Hitting the level cap returns the finest solution with
 `converged=False`; it is never silently described as converged.
