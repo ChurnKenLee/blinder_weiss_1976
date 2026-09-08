@@ -470,6 +470,7 @@ def test_acceptance_requires_distinct_resolutions_same_law_and_stable_fit():
 
 def test_scalar_fit_keeps_incumbent_and_preserves_search_termination(monkeypatch):
     from types import SimpleNamespace
+
     import blinder_weiss.calibration as calibration
 
     def objective(params, *args, **kwargs):
