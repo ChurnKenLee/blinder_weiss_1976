@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Any
 
 import numpy as np
 import pytest
@@ -413,7 +414,7 @@ def test_acceptance_requires_distinct_resolutions_same_law_and_stable_fit():
             params, population, weighted_age_moment_loss(population, targets), 0.0, 0.0, 0.0
         )
 
-    kwargs = dict(
+    kwargs: dict[str, Any] = dict(
         fitted_parameters=(1.0, 1.001),
         optimizer_success=(True, True),
         thresholds=NumericalAcceptanceThresholds(0.02, 0.03, 0.002),

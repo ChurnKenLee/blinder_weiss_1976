@@ -380,7 +380,7 @@ def fit_initial_law_calibration(
         evaluations.append(evaluation)
         return evaluation.objective.loss
 
-    fit = minimize_scalar(
+    fit: Any = minimize_scalar(
         objective,
         bounds=bounds,
         method="bounded",
