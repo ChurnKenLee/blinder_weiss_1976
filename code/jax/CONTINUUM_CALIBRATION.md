@@ -165,6 +165,15 @@ refinement are needed; both the interior remapping bias and outer-cell exposure
 remain visible in diagnostics. Floor mass is measured at age boundaries, and
 an interior checkpoint contact does not by itself create an endpoint atom.
 
+A [supplemental curvature-3 grid](../../output/solver_benchmarks/continuum_gpu_curvature3/report.json)
+keeps 121×121 nodes but lowers the first interior gap to 2.03e-5. It reduces
+maximum floor-mass error from 0.15934 to 0.08581, yet worsens the aggregate
+synthetic loss from 0.46411 to 0.52200; warm transport remains 10.50 s. It is
+not promoted. This is evidence that resolving the first cell alone does not
+settle distribution accuracy. The CLI's independent
+`--distribution-asset-curvature` option permits this comparison without changing
+the Bellman grid; the recorded main benchmark uses curvature 2.
+
 ## Reproduce the comparison
 
 The benchmark re-solves the supplied numerical configuration and uses the same
