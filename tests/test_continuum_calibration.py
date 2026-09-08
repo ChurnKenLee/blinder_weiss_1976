@@ -575,3 +575,62 @@ def test_initial_law_fit_obeys_same_hard_call_cap(monkeypatch, small_solution, m
         max_evaluations=maximum,
     )
     assert fit.nfev == len(calls) == len(fit.evaluations) <= maximum
+
+
+@pytest.mark.parametrize("parameter", ["initial_assets", "initial_human_capital"])
+def test_scalar_fit_rejects_initial_conditions_overridden_by_population(parameter):
+    from blinder_weiss.calibration import fit_scalar_calibration
+
+    with pytest.raises(ValueError, match="initial-law calibration"):
+        fit_scalar_calibration(
+            parameter,
+            (0.5, 8.0),
+            params=benchmark_params(),
+            config=BellmanConfig(),
+            initial_nodes=initial_quadrature(nodes_per_dimension=2, asset_floor=0.001),
+            targets=synthetic_targets(),
+        )
+
+
+def test_initial_law_fit_checks_declared_support_before_objective(monkeypatch, small_solution):
+    import blinder_weiss.calibration as calibration
+
+    law = SyntheticInitialDistribution(asset_upper=12.1)
+    nodes = initial_quadrature(law, nodes_per_dimension=2, asset_floor=0.001)
+    assert nodes.assets.max() < small_solution.asset_grid[-1]
+    calls = []
+    monkeypatch.setattr(calibration, "evaluate_initial_law", lambda *a, **k: calls.append(a))
+    with pytest.raises(ValueError, match="declared active initial asset support"):
+        calibration.fit_initial_law_calibration(
+            "asset_upper",
+            (11.9, 12.1),
+            solution=small_solution,
+            law=SyntheticInitialDistribution(),
+            targets=synthetic_targets(),
+            nodes_per_dimension=2,
+        )
+    assert calls == []
+
+
+@pytest.mark.parametrize(
+    "law, message",
+    [
+        (SyntheticInitialDistribution(asset_upper=12.1), "asset support"),
+        (
+            SyntheticInitialDistribution(asset_floor_mass=1.0, log_human_capital_lower=-1.01),
+            "log-capital support",
+        ),
+        (SyntheticInitialDistribution(atoms=(InitialAtom(12.1, 1.0, 0.05),)), "initial atom"),
+    ],
+)
+def test_population_checks_active_initial_support_before_rollout(
+    monkeypatch, small_solution, law, message
+):
+    import blinder_weiss.continuum as continuum
+
+    calls = []
+    monkeypatch.setattr(continuum, "simulate_cohort", lambda *a, **k: calls.append(a))
+    nodes = initial_quadrature(law, nodes_per_dimension=2, asset_floor=0.001)
+    with pytest.raises(ValueError, match=message):
+        simulate_population(small_solution, nodes, participation_hours_threshold=0.02)
+    assert calls == []

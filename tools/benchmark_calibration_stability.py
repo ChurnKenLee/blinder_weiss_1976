@@ -42,6 +42,14 @@ from blinder_weiss.continuum import (
 )
 from blinder_weiss.model import benchmark_params
 
+STATE_MOMENT_NAMES = {
+    "assets",
+    "human_capital",
+    "log_human_capital",
+    "asset_floor_mass",
+    "near_asset_floor_mass",
+}
+
 
 def _benchmark_helpers():
     spec = importlib.util.spec_from_file_location(
@@ -228,9 +236,9 @@ def main():
     profiles = []
     for name, scale in scales.items():
         owner = (
-            reference_population.moments
-            if hasattr(reference_population.moments, name)
-            else reference_population.state_moments
+            reference_population.state_moments
+            if name in STATE_MOMENT_NAMES
+            else reference_population.moments
         )
         profiles.append(
             AgeMomentTarget(
@@ -344,9 +352,7 @@ def main():
             arrays[f"{label}_state_time"] = population.state_moments.time
             for name in (*scales, "asset_floor_mass"):
                 owner = (
-                    population.moments
-                    if hasattr(population.moments, name)
-                    else population.state_moments
+                    population.state_moments if name in STATE_MOMENT_NAMES else population.moments
                 )
                 arrays[f"{label}_{name}"] = getattr(owner, name)
             del fit

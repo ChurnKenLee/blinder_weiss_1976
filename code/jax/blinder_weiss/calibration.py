@@ -19,6 +19,7 @@ from .continuum import (
     PopulationNodes,
     PopulationResult,
     SyntheticInitialDistribution,
+    _validate_initial_law_domain,
     initial_quadrature,
     simulate_population,
 )
@@ -252,6 +253,8 @@ def fit_scalar_calibration(
 
     from scipy.optimize import OptimizeResult
 
+    if parameter in {"initial_assets", "initial_human_capital"}:
+        raise ValueError("PopulationNodes supply initial conditions; use initial-law calibration")
     if parameter not in params._fields or parameter in {"horizon", "asset_floor"}:
         raise ValueError("parameter must be a ModelParams field other than horizon or asset_floor")
     if len(bounds) != 2 or not np.all(np.isfinite(bounds)) or bounds[0] >= bounds[1]:
@@ -401,6 +404,7 @@ def fit_initial_law_calibration(
     # Both endpoints are checked before requesting any greedy rollout/compilation.
     for endpoint in bounds:
         candidate = _replace_initial_parameter(law, parameter, endpoint, atom_index)
+        _validate_initial_law_domain(candidate, solution)
         nodes = initial_quadrature(
             candidate,
             nodes_per_dimension=nodes_per_dimension,

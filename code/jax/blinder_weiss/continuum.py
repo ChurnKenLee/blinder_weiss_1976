@@ -126,6 +126,25 @@ def _validate_initial_law(law: SyntheticInitialDistribution, asset_floor: float)
     return max(0.0, remainder)
 
 
+def _validate_initial_law_domain(law: SyntheticInitialDistribution, solution: BellmanSolution):
+    """Check active declared support, including endpoints missed by interior quadrature."""
+    interior_mass = _validate_initial_law(law, solution.config.asset_minimum)
+    asset_lower, asset_upper = solution.asset_grid[[0, -1]]
+    log_k_lower, log_k_upper = solution.log_human_capital_grid[[0, -1]]
+    if interior_mass > 0 and (law.asset_lower < asset_lower or law.asset_upper > asset_upper):
+        raise ValueError("declared active initial asset support exceeds the Bellman domain")
+    if (interior_mass > 0 or law.asset_floor_mass > 0) and (
+        law.log_human_capital_lower < log_k_lower or law.log_human_capital_upper > log_k_upper
+    ):
+        raise ValueError("declared active initial log-capital support exceeds the Bellman domain")
+    for atom in law.atoms:
+        if atom.mass > 0 and (
+            not asset_lower <= atom.assets <= asset_upper
+            or not log_k_lower <= np.log(atom.human_capital) <= log_k_upper
+        ):
+            raise ValueError("declared active initial atom exceeds the Bellman domain")
+
+
 def synthetic_initial_scenarios() -> dict[str, SyntheticInitialDistribution]:
     """Explicit assumed-law sensitivity cases, including a separate point-atom stress.
 
@@ -325,6 +344,8 @@ def simulate_population(
         raise ValueError("near_asset_floor_width must be finite and positive when supplied")
     if backend not in {"quadrature", "cohort", "transport"}:
         raise ValueError("backend must be quadrature, cohort or transport")
+    if initial_nodes.initial_law is not None:
+        _validate_initial_law_domain(initial_nodes.initial_law, solution)
     if backend == "transport":
         from .distribution import build_transport, initialize_distribution, simulate_distribution
 
