@@ -10,6 +10,7 @@ import argparse
 import json
 from dataclasses import asdict
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 from blinder_weiss import ModelParams, simulate_cohort
@@ -200,7 +201,7 @@ def main():
     temporary.write_text(json.dumps(report, indent=2, allow_nan=False) + "\n")
     temporary.replace(args.output)
     with archive.with_suffix(".npz.tmp").open("wb") as handle:
-        np.savez_compressed(handle, **arrays)
+        np.savez_compressed(handle, **cast(dict[str, Any], arrays))
     archive.with_suffix(".npz.tmp").replace(archive)
 
 
