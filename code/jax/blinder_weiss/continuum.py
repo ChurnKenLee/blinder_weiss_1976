@@ -9,7 +9,7 @@ weights; the nodes here only vary initial states.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, is_dataclass
+from dataclasses import asdict, dataclass, is_dataclass, replace
 from functools import lru_cache
 from typing import Any, Literal
 
@@ -51,7 +51,7 @@ class SyntheticInitialDistribution:
     log_human_capital_upper: float = 0.25
     correlation: float = 0.25
     asset_floor_mass: float = 0.05
-    atoms: tuple[InitialAtom, ...] = (InitialAtom(5.0, 1.0, 0.05),)
+    atoms: tuple[InitialAtom, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -74,6 +74,8 @@ class PopulationStateMoments:
     human_capital: np.ndarray
     log_human_capital: np.ndarray
     asset_floor_mass: np.ndarray
+    near_asset_floor_mass: np.ndarray | None = None
+    near_asset_floor_width: float | None = None
 
 
 @dataclass(frozen=True)
@@ -120,6 +122,24 @@ def _validate_initial_law(law: SyntheticInitialDistribution, asset_floor: float)
     if remainder < -1e-14:
         raise ValueError("initial component probabilities must sum to at most one")
     return max(0.0, remainder)
+
+
+def synthetic_initial_scenarios() -> dict[str, SyntheticInitialDistribution]:
+    """Explicit assumed-law sensitivity cases, including a separate point-atom stress.
+
+    The baseline has continuous initial heterogeneity and a 5% floor face; it
+    has no interior point atom. These probabilities/correlations are numerical
+    scenarios, not estimates. Each case changes one initial-law feature.
+    """
+    baseline = SyntheticInitialDistribution()
+    return {
+        "baseline": baseline,
+        "no_floor_atom": replace(baseline, asset_floor_mass=0.0),
+        "double_floor_share": replace(baseline, asset_floor_mass=0.10),
+        "independent_initial_states": replace(baseline, correlation=0.0),
+        "negative_initial_correlation": replace(baseline, correlation=-0.25),
+        "point_atom_stress": replace(baseline, atoms=(InitialAtom(5.0, 1.0, 0.05),)),
+    }
 
 
 def initial_quadrature(
@@ -281,14 +301,23 @@ def simulate_population(
     participation_hours_threshold: float,
     distribution_grid: Any = None,
     store_snapshots: bool = False,
+    near_asset_floor_width: float | None = None,
 ) -> PopulationResult:
     """Select a population approximation while keeping moment definitions fixed.
 
     Quadrature is the reference default. ``cohort`` runs the same dynamics,
     normally on IID nodes. Transport remains an explicit opt-in pending joint
-    distribution-grid/domain/policy/time convergence acceptance.
+    distribution-grid/domain/policy/time convergence acceptance. A supplied
+    ``near_asset_floor_width`` reports the inclusive band from the numerical
+    floor to floor + width, in model asset units, at every age boundary. This
+    band includes exact floor mass but does not change contact classification.
+    Keep its width fixed when comparing numerical resolutions.
     """
 
+    if near_asset_floor_width is not None and (
+        not np.isfinite(near_asset_floor_width) or near_asset_floor_width <= 0.0
+    ):
+        raise ValueError("near_asset_floor_width must be finite and positive when supplied")
     if backend not in {"quadrature", "cohort", "transport"}:
         raise ValueError("backend must be quadrature, cohort or transport")
     if backend == "transport":
@@ -308,6 +337,7 @@ def simulate_population(
             initial_mass,
             participation_hours_threshold=participation_hours_threshold,
             store_snapshots=store_snapshots,
+            near_asset_floor_width=near_asset_floor_width,
         )
         native_state = simulation.state_moments
         state_moments = PopulationStateMoments(
@@ -316,6 +346,8 @@ def simulate_population(
             human_capital=native_state.human_capital,
             log_human_capital=native_state.log_human_capital,
             asset_floor_mass=native_state.asset_floor_mass,
+            near_asset_floor_mass=native_state.near_asset_floor_mass,
+            near_asset_floor_width=native_state.near_asset_floor_width,
         )
         initial_stencil = build_transport(
             distribution_grid,
@@ -349,6 +381,12 @@ def simulate_population(
         human_capital=cohort.human_capital @ cohort.weights,
         log_human_capital=cohort.log_human_capital @ cohort.weights,
         asset_floor_mass=floor_contacts @ cohort.weights,
+        near_asset_floor_mass=(
+            (floor_contacts | ((cohort.assets > floor)
+                              & (cohort.assets <= floor + near_asset_floor_width))) @ cohort.weights
+            if near_asset_floor_width is not None else None
+        ),
+        near_asset_floor_width=near_asset_floor_width,
     )
     diagnostics = {
         "total_mass": np.full(solution.config.periods + 1, cohort.weights.sum()),
@@ -360,5 +398,7 @@ def simulate_population(
         "asset_floor_contact": "exact initial floor; shared endpoint roundoff classifier",
         "asset_floor_contact_roundoff_multiplier": _FLOOR_CONTACT_ULPS,
         "nodes": cohort.weights.size,
+        "near_asset_floor_width": near_asset_floor_width,
+        "near_asset_floor_definition": "A in [numerical floor, numerical floor + width]; includes exact floor",
     }
     return PopulationResult(backend, moments, state_moments, diagnostics, cohort)
