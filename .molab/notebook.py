@@ -257,5 +257,29 @@ def population_imports(Path, json, np):
     return
 
 
+@app.cell
+def population_controls(mo):
+    population_settings = mo.ui.dictionary({
+        "backend": mo.ui.dropdown(
+            options={"Quadrature reference": "quadrature", "Conservative transport": "transport"},
+            value="Quadrature reference", label="Population method",
+        ),
+        "quadrature_order": mo.ui.dropdown(
+            options={"8 × 8": 8, "16 × 16": 16, "32 × 32": 32, "64 × 64": 64},
+            value="16 × 16", label="Initial quadrature",
+        ),
+        "transport_resolution": mo.ui.dropdown(
+            options={"31 × 31": 31, "61 × 61": 61, "121 × 121": 121},
+            value="61 × 61", label="Forward grid (transport only)",
+        ),
+        "correlation": mo.ui.slider(-0.3, 0.3, step=0.05, value=0.25,
+                                    label="Initial Corr(A, log K), interior component"),
+        "floor_mass": mo.ui.slider(0.0, 0.2, step=0.01, value=0.05,
+                                   label="Initial probability at numerical asset floor"),
+    }).form(submit_button_label="Simulate population", show_clear_button=False)
+    population_settings
+    return
+
+
 if __name__ == "__main__":
     app.run()
