@@ -205,8 +205,14 @@ def fit_scalar_calibration(
         raise ValueError("parameter must be a ModelParams field other than horizon or asset_floor")
     if len(bounds) != 2 or not np.all(np.isfinite(bounds)) or bounds[0] >= bounds[1]:
         raise ValueError("bounds must be finite and strictly ordered")
-    if not np.isfinite(parameter_tolerance) or parameter_tolerance <= 0 or max_evaluations < 1:
-        raise ValueError("parameter tolerance and maximum evaluations must be positive")
+    if not np.isfinite(parameter_tolerance) or parameter_tolerance <= 0:
+        raise ValueError("parameter_tolerance must be finite and positive")
+    if (
+        isinstance(max_evaluations, bool)
+        or not isinstance(max_evaluations, (int, np.integer))
+        or max_evaluations < 1
+    ):
+        raise ValueError("max_evaluations must be a positive integer")
     evaluations: list[CalibrationEvaluation] = []
 
     def objective(value: float) -> float:

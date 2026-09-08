@@ -49,7 +49,9 @@ def summarize(solution, states, controls, direct_utilities):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("output/solver_benchmarks"))
-    parser.add_argument("--folders", nargs=2, default=["bicubic_padded_fine", "bicubic_asset121_fine"])
+    parser.add_argument(
+        "--folders", nargs=2, default=["bicubic_padded_fine", "bicubic_asset121_fine"]
+    )
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--platform", choices=["cpu", "gpu"], default="gpu")
     parser.add_argument("--reuse-paths", action="store_true")

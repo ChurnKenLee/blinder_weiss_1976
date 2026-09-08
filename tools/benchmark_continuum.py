@@ -221,7 +221,8 @@ def main():
             result, warm = timer.measure(population_call)
         except DistributionDomainError as error:
             report["backends"][label] = {
-                "accepted": False,
+                "completed": False,
+                "accepted_for_calibration": False,
                 "error": str(error),
                 "diagnostics": error.diagnostics,
             }
@@ -229,7 +230,8 @@ def main():
             continue
         results[label] = result
         report["backends"][label] = {
-            "accepted": True,
+            "completed": True,
+            "accepted_for_calibration": False,
             "first_population": first,
             "warm_population": warm,
             "diagnostics": result.diagnostics,
@@ -330,23 +332,37 @@ def main():
                     ),
                     flush=True,
                 )
-                evaluation, timing = timer.measure(
-                    lambda leisure_weight=leisure_weight, nodes=nodes, backend=backend, grid=grid: (
-                        evaluate_calibration(
-                            params._replace(leisure_weight=leisure_weight),
-                            config,
-                            nodes,
-                            targets,
-                            backend=backend,
-                            distribution_grid=grid,
-                            store_snapshots=True,
+                try:
+                    evaluation, timing = timer.measure(
+                        lambda leisure_weight=leisure_weight, nodes=nodes, backend=backend, grid=grid: (
+                            evaluate_calibration(
+                                params._replace(leisure_weight=leisure_weight),
+                                config,
+                                nodes,
+                                targets,
+                                backend=backend,
+                                distribution_grid=grid,
+                                store_snapshots=True,
+                            )
                         )
                     )
-                )
+                except DistributionDomainError as error:
+                    report["perturbations"].append(
+                        {
+                            "backend": label,
+                            "leisure_weight": leisure_weight,
+                            "completed": False,
+                            "error": str(error),
+                            "diagnostics": error.diagnostics,
+                        }
+                    )
+                    checkpoint()
+                    continue
                 report["perturbations"].append(
                     {
                         "backend": label,
                         "leisure_weight": leisure_weight,
+                        "completed": True,
                         "loss": evaluation.objective.loss,
                         "timing": timing,
                         "solve_seconds": evaluation.solve_seconds,
