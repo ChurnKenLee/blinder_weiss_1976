@@ -189,6 +189,25 @@ is recorded, and the initial floor mixture requires a common numerical floor.
 Both modes re-solve the current source; saved policy tables are not assumed to
 match that source. Use at least two quadrature orders at each resolution.
 
+The joint-refinement production command is:
+
+```bash
+PYTHONPATH=code/jax python tools/benchmark_calibration_stability.py \
+  --platform gpu \
+  --resolution-config-reports \
+    output/solver_benchmarks/boundary_time_refinement/continuous_140/report.json \
+    output/solver_benchmarks/boundary_state_refinement/continuous_280_asset241/report.json \
+  --orders 32 64 --fit-initial-law --fit-evaluations 30 \
+  --output output/solver_benchmarks/calibration_stability_gpu
+```
+
+The two configurations use 140 periods/121 asset nodes and 280 periods/241 asset
+nodes, with 79 log-capital nodes and continuous asset feasibility. Per-candidate
+progress checkpoints retain parameter values, losses and complete evaluation
+timings; the final report separately retains raw bounded-search termination
+and the selected incumbent/search candidate. Outputs under `resolutions` have
+an explicit `running` or `completed` status.
+
 ## Historical checkpoint GPU pilot (2026-09-08)
 
 The following saved results use the historical checkpoint feasibility rule and
