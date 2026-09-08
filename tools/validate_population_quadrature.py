@@ -31,7 +31,9 @@ from blinder_weiss.continuum import (
 from validate_calibration_grid import error_metrics, load_solution
 
 
-def restore_problem(report: dict[str, Any]) -> tuple[SyntheticInitialDistribution, CalibrationTargets]:
+def restore_problem(
+    report: dict[str, Any],
+) -> tuple[SyntheticInitialDistribution, CalibrationTargets]:
     """Restore every supplied initial-law and target measurement field explicitly."""
     law_data = dict(report["initial_law"])
     law_data["atoms"] = tuple(InitialAtom(**atom) for atom in law_data["atoms"])
@@ -204,7 +206,9 @@ def main():
         )
         started = perf_counter()
         population = simulate_population(
-            solution, nodes, backend="quadrature",
+            solution,
+            nodes,
+            backend="quadrature",
             participation_hours_threshold=targets.participation_hours_threshold,
             near_asset_floor_width=targets.near_asset_floor_width,
         )
@@ -212,7 +216,8 @@ def main():
         elapsed = perf_counter() - started
         populations[order], objectives[order] = population, objective
         report["runs"][str(order)] = {
-            "status": "completed", "nodes": int(nodes.weights.size),
+            "status": "completed",
+            "nodes": int(nodes.weights.size),
             "population_and_loss_seconds_including_first_compile": elapsed,
             "loss_against_fixed_target": objective.loss,
             "predicted_at_target_ages": objective.predicted,
@@ -227,16 +232,31 @@ def main():
         arrays[f"{prefix}_initial_weights"] = nodes.weights
         arrays[f"{prefix}_initial_component"] = nodes.component
         for name in MOMENT_UNITS:
-            owner = population.moments if hasattr(population.moments, name) else population.state_moments
+            owner = (
+                population.moments
+                if hasattr(population.moments, name)
+                else population.state_moments
+            )
             value = getattr(owner, name)
             if value is not None:
                 arrays[f"{prefix}_{name}"] = value
         save_report(args.output, report, arrays)
-        print(json.dumps({"phase": "population complete", "order": order,
-                          "loss": objective.loss, "seconds": elapsed}), flush=True)
+        print(
+            json.dumps(
+                {
+                    "phase": "population complete",
+                    "order": order,
+                    "loss": objective.loss,
+                    "seconds": elapsed,
+                }
+            ),
+            flush=True,
+        )
     reference_order = orders[-1]
     for order in orders[:-1]:
-        comparison = compare_target_predictions(objectives[order], objectives[reference_order], targets)
+        comparison = compare_target_predictions(
+            objectives[order], objectives[reference_order], targets
+        )
         comparison["whole_native_profile_differences"] = compare_native_profiles(
             populations[order], populations[reference_order]
         )
@@ -245,12 +265,14 @@ def main():
         comparison["target_moments_within_stability_tolerance"] = (
             comparison["maximum_standardized_moment_difference"]
             <= thresholds["maximum_standardized_moment_difference"]
-            if "maximum_standardized_moment_difference" in thresholds else None
+            if "maximum_standardized_moment_difference" in thresholds
+            else None
         )
         comparison["loss_difference_within_stability_tolerance"] = (
             comparison["absolute_loss_difference_against_fixed_target"]
             <= thresholds["maximum_loss_difference"]
-            if "maximum_loss_difference" in thresholds else None
+            if "maximum_loss_difference" in thresholds
+            else None
         )
         report["comparisons"][f"q{order}_versus_q{reference_order}"] = comparison
     report["status"] = "completed"
