@@ -400,7 +400,11 @@ def test_acceptance_requires_distinct_resolutions_same_law_and_stable_fit():
     reference = replace(
         base,
         simulation=SimpleNamespace(solution=SimpleNamespace(config=config)),
-        diagnostics={"initial_law": asdict(SyntheticInitialDistribution()), "quadrature_order": 16},
+        diagnostics={
+            "initial_law": asdict(SyntheticInitialDistribution()),
+            "quadrature_order": 16,
+            "maximum_full_period_floor_violation": 0.0,
+        },
     )
     coarse = replace(
         reference,
@@ -442,3 +446,42 @@ def test_acceptance_requires_distinct_resolutions_same_law_and_stable_fit():
     assert not compare_calibration_resolutions(
         evaluation(coarse), evaluation(reference), targets, **unstable
     )["passed"]
+
+
+def test_scalar_fit_keeps_incumbent_and_preserves_search_termination(monkeypatch):
+    from types import SimpleNamespace
+    import blinder_weiss.calibration as calibration
+
+    def objective(params, *args, **kwargs):
+        # A narrow isolated optimum that bounded scalar search does not sample.
+        loss = 0.0 if params.leisure_weight == 1.0 else 1.0 + (params.leisure_weight - 1.03) ** 2
+        return SimpleNamespace(params=params, objective=SimpleNamespace(loss=loss))
+
+    monkeypatch.setattr(calibration, "evaluate_calibration", objective)
+    fit = calibration.fit_scalar_calibration(
+        "leisure_weight",
+        (0.9, 1.1),
+        params=benchmark_params(),
+        config=BellmanConfig(),
+        initial_nodes=initial_quadrature(nodes_per_dimension=2, asset_floor=0.001),
+        targets=synthetic_targets(),
+        max_evaluations=30,
+    )
+    assert fit.success
+    assert fit.x == 1.0 and fit.fun == 0.0
+    assert fit.selection_source == "initial_parameter"
+    assert fit.raw_optimizer["fun"] >= 1.0
+    assert fit.raw_optimizer["x"] != fit.x
+    assert fit.nfev == len(fit.evaluations) <= 30
+    limited = calibration.fit_scalar_calibration(
+        "leisure_weight",
+        (0.9, 1.1),
+        params=benchmark_params(),
+        config=BellmanConfig(),
+        initial_nodes=initial_quadrature(nodes_per_dimension=2, asset_floor=0.001),
+        targets=synthetic_targets(),
+        max_evaluations=1,
+    )
+    assert not limited.success
+    assert limited.raw_optimizer is None
+    assert limited.nfev == 1 and limited.fun == 0.0

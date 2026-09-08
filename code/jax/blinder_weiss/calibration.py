@@ -217,12 +217,16 @@ def fit_scalar_calibration(
 ) -> Any:
     """Bounded derivative-free one-parameter fit with recorded evaluations.
 
-    Returns SciPy's OptimizeResult with ``evaluations`` and ``best_evaluation``.
-    Numerical success does not establish identification or global optimality.
+    Evaluate the supplied parameter as an incumbent when it lies in bounds;
+    the returned x/fun always select the best actually evaluated candidate.
+    ``raw_optimizer`` preserves the bounded search result and termination,
+    and ``selection_source`` identifies an incumbent retained over that search.
+    The evaluation cap includes the incumbent. Success records termination,
+    not identification, global optimality, or numerical-resolution acceptance.
     Fix shape/domain parameters: this routine estimates ModelParams fields only.
     """
 
-    from scipy.optimize import minimize_scalar
+    from scipy.optimize import OptimizeResult, minimize_scalar
 
     if parameter not in params._fields or parameter in {"horizon", "asset_floor"}:
         raise ValueError("parameter must be a ModelParams field other than horizon or asset_floor")
@@ -250,14 +254,35 @@ def fit_scalar_calibration(
         evaluations.append(evaluation)
         return evaluation.objective.loss
 
-    result = minimize_scalar(
-        objective,
-        bounds=bounds,
-        method="bounded",
-        options={"xatol": parameter_tolerance, "maxiter": max_evaluations},
-    )
+    initial_value = float(getattr(params, parameter))
+    incumbent = None
+    if bounds[0] <= initial_value <= bounds[1]:
+        objective(initial_value)
+        incumbent = evaluations[-1]
+    remaining = max_evaluations - len(evaluations)
+    if remaining:
+        result = minimize_scalar(
+            objective,
+            bounds=bounds,
+            method="bounded",
+            options={"xatol": parameter_tolerance, "maxiter": remaining},
+        )
+        result.raw_optimizer = {
+            key: result[key] for key in ("x", "fun", "success", "status", "message", "nfev")
+        }
+    else:
+        result = OptimizeResult(
+            success=False, status=1, message="Evaluation budget consumed by initial parameter."
+        )
+        result.raw_optimizer = None
     result.evaluations = evaluations
     result.best_evaluation = min(evaluations, key=lambda evaluation: evaluation.objective.loss)
+    result.x = float(getattr(result.best_evaluation.params, parameter))
+    result.fun = result.best_evaluation.objective.loss
+    result.nfev = len(evaluations)
+    result.selection_source = (
+        "initial_parameter" if result.best_evaluation is incumbent else "bounded_search"
+    )
     return result
 
 
@@ -399,6 +424,7 @@ class NumericalAcceptanceThresholds:
     maximum_standardized_moment_difference: float
     maximum_loss_difference: float
     maximum_parameter_difference: float
+    maximum_full_period_floor_violation: float = 1e-10
 
 
 def compare_calibration_resolutions(
@@ -452,10 +478,25 @@ def compare_calibration_resolutions(
         "initial_law"
     ] == fine_diagnostics.get("initial_law")
     same_params = coarse.params == reference.params
-    distinct_resolution = (
-        coarse.population.simulation.solution.config
-        != reference.population.simulation.solution.config
-        or coarse_diagnostics.get("quadrature_order") != fine_diagnostics.get("quadrature_order")
+
+    def numerical_config(population):
+        config = asdict(population.simulation.solution.config)
+        for field in ("compute_platform", "device_index", "control_batch_size"):
+            config.pop(field)
+        if config["asset_feasibility"] == "continuous":
+            config.pop("path_checkpoints")
+        return config
+
+    distinct_resolution = numerical_config(coarse.population) != numerical_config(
+        reference.population
+    ) or coarse_diagnostics.get("quadrature_order") != fine_diagnostics.get("quadrature_order")
+    floor_violations = [
+        diagnostics.get("maximum_full_period_floor_violation", np.inf)
+        for diagnostics in (coarse_diagnostics, fine_diagnostics)
+    ]
+    feasible = bool(
+        np.all(np.isfinite(floor_violations))
+        and np.max(floor_violations) <= thresholds.maximum_full_period_floor_violation
     )
     criteria = {
         "same_structural_parameters": bool(same_params),
@@ -467,6 +508,7 @@ def compare_calibration_resolutions(
         "fitted_parameter_within_tolerance": parameter_difference
         <= thresholds.maximum_parameter_difference,
         "both_optimizers_succeeded": bool(all(optimizer_success)),
+        "both_full_period_paths_feasible": feasible,
     }
     return {
         "passed": all(criteria.values()),
@@ -476,5 +518,6 @@ def compare_calibration_resolutions(
         "maximum_standardized_moment_difference": max_standardized,
         "absolute_loss_difference": loss_difference,
         "absolute_fitted_parameter_difference": parameter_difference,
+        "maximum_full_period_floor_violations": floor_violations,
         "scope": "local synthetic stability; no empirical or continuum certification",
     }

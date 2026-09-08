@@ -58,7 +58,7 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--platform", choices=["cpu", "gpu"], default="cpu")
     parser.add_argument("--config-report", type=Path)
-    parser.add_argument("--periods", type=int, nargs="+", default=[4, 8])
+    parser.add_argument("--periods", type=int, nargs="+")
     parser.add_argument("--orders", type=int, nargs="+", default=[4, 8, 16])
     parser.add_argument("--parameter", default="leisure_weight")
     parser.add_argument("--bounds", type=float, nargs=2, default=[0.9, 1.1])
@@ -75,6 +75,13 @@ def main():
     parser.add_argument("--fit-tolerance", type=float, default=0.002)
     parser.add_argument("--fit-initial-law", action="store_true")
     args = parser.parse_args()
+    if args.periods is None:
+        starting_periods = (
+            json.loads(args.config_report.read_text())["config"]["periods"]
+            if args.config_report
+            else 4
+        )
+        args.periods = [starting_periods, 2 * starting_periods]
     periods, orders = sorted(set(args.periods)), sorted(set(args.orders))
     if min(periods) < 2 or min(orders) < 2 or len(periods) * len(orders) < 2:
         parser.error("at least two distinct resolutions with periods/orders >=2 required")
@@ -251,6 +258,9 @@ def main():
                 "fitted_loss": float(fit.fun),
                 "optimizer_success": bool(fit.success),
                 "optimizer_message": str(fit.message),
+                "selection_source": fit.selection_source,
+                "raw_optimizer": fit.raw_optimizer,
+                "selected_fit_no_worse_than_initial_parameter": fit.fun <= objective.loss + 1e-12,
                 "fit_timing": fit_timing,
                 "diagnostics": population.diagnostics,
                 "fit_trace": [
