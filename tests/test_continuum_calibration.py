@@ -235,9 +235,16 @@ def test_initial_near_floor_mass_remains_interior():
 
 
 def test_failure_diagnostics_can_be_saved_as_strict_json():
+    import importlib.util
     import json
+    from pathlib import Path
 
-    from tools.benchmark_continuum import jsonable
+    script = Path(__file__).resolve().parents[1] / "tools/benchmark_continuum.py"
+    spec = importlib.util.spec_from_file_location("continuum_benchmark", script)
+    assert spec is not None and spec.loader is not None
+    benchmark = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(benchmark)
+    jsonable = benchmark.jsonable
 
     failed = {
         "completed": False,
