@@ -5,8 +5,8 @@ JAX/JAXlib/CUDA plugin 0.11.0, float64, and Python 3.13.11. The project manifest
 specifies Python >=3.14 and JAX 0.10.1; these measurements describe the installed
 runtime. They are not RTX 5070 Ti measurements.
 
-The latest refinement (2026-09-08) reduces retirement consumption Euler jitter
-by 37–54% across three independent reference households. It uses 121 asset
+The initial checkpoint-feasible refinement (2026-09-08) reduces retirement
+consumption Euler jitter by 37–54% across three independent reference households. It uses 121 asset
 nodes on the padded domain and takes 9.37 s per repeated GPU solve, compared
 with 6.94–6.95 s for the preceding 61-node run. Full population, policy and
 time-grid convergence is not established.
@@ -276,3 +276,85 @@ This does not yet supply an empirical calibration. Survey universes, calendar
 ages, time endowment, active time versus employment, training coverage, wage
 units, and survey weighting still need an explicit measurement specification.
 No empirical moments or estimated parameters are claimed by these benchmarks.
+
+
+## Continuous feasibility and joint time/state refinement (2026-09-08)
+
+The later continuous-feasibility benchmark improves retirement smoothness by
+refining time and assets together. With 280 periods and 241 asset nodes, weighted
+retirement Euler RMS is **0.002480 per year**, 18.6% below the corrected 140-period,
+121-node policy. Refining only time worsened this measure, so the saved comparison
+retains that negative result explicitly.
+
+These runs retain 79 log-human-capital nodes, padded domains, 48 local steps,
+240 neighboring-policy sweeps, zero propagation tolerance, and the same control
+seeds. The population uses order-32 deterministic quadrature: 1,057 weighted
+initial types, with 90% continuous mass, 5% on the numerical asset floor, and an
+explicit 5% point atom at `(A,K)=(5,1)`. This is a synthetic stress law, distinct
+from the default initial law and from the historical 256-type comparison above.
+All controls and ordinary moments are compared at common physical ages.
+
+| Feasibility / periods / asset nodes | Retirement Euler RMS per year | Maximum absolute recovered-value gap | Weighted realized utility | Warm GPU solve |
+|---|---:|---:|---:|---:|
+| Checkpoints / 140 / 121 | 0.0030464 | 0.041374 | -100.526816 | historical 9.37 s |
+| Continuous / 140 / 121 | 0.0030468 | 0.040946 | -100.526855 | 24.40 s |
+| Continuous / 280 / 121 | 0.0056407 | 0.050097 | -100.525896 | 30.89 s |
+| Continuous / 280 / 241 | 0.0024797 | 0.015575 | -100.525417 | 68.82 s |
+
+The checkpoint row reuses a saved policy with explicit legacy recovery; it is
+not a new timed solve. First continuous solves took 35.19, 41.14 and 79.33 s;
+first population rollouts including compilation took 14.69, 23.49 and 23.87 s.
+Each warm figure is one additional synchronized solve. The live notebook held
+GPU memory during process startup, causing recoverable allocator backoff; first
+process timings should not be interpreted as isolated compilation costs.
+
+**Feasibility correction.** Independent analytic within-period minima found
+8,557 checkpoint node controls below the numerical floor `1e-4`, and 66.19% of
+the stress population mass had at least one such interval. The worst node asset
+level was `3.1784e-5`; none crossed the economic floor zero. Continuous feasibility
+removes these numerical-floor violations: all 5,330,920 node controls on the final
+grid and every native population interval pass at tolerance `1e-10`. Maximum
+roundoff shortfalls are `9.43e-17` at nodes and `1.22e-16` on population paths.
+Changing feasibility alone leaves retirement jitter essentially unchanged and
+changes weighted realized utility by `-3.82e-5`, consistent with tightening the
+implemented constraint. It changes strict endpoint floor mass by as much as
+6.52 percentage points despite small ordinary-moment changes.
+
+**Time-only versus asset refinement.** Doubling periods at 121 asset nodes raises
+Euler RMS by 85.1%. Doubling asset resolution at those 280 periods then reduces
+it by 56.0%; on exactly the same eligible retired pairs the reduction is 56.2%
+(`0.0056328 → 0.0024674`). Relative to corrected 140/121, the final grid improves
+weighted utility by `0.001438`, with 99.40% of mass improving, and reduces the
+maximum absolute value gap by 62.0%. This supports joint refinement; it does not
+establish that further time refinement at fixed state resolution is reliable.
+
+At fixed 280 periods, the asset refinement changes population moment profiles
+by RMS `0.000690` consumption, `0.000510` hours, `0.000491` training, `0.001579`
+earnings, and `0.001300` participation (0.130 percentage points). Individual tails
+remain: type 595, weight 0.204%, changes its asset path by as much as 11.560 and
+gains 0.05043 utility; its recovered-value gap shrinks from 0.05010 to -0.00524.
+Only this type has an asset-path change greater than one. Type 596 loses 0.00470
+utility under asset refinement and 0.00632 under joint refinement. Strict endpoint
+floor mass still changes by as much as 6.51 percentage points at fixed 280 periods.
+These tails and boundary masses prevent a population-convergence claim.
+
+All final-grid node Bellman residuals are below `4.55e-13`. The independent
+interpolation shape audit checks **84,522,833** points over all 281 ages: every
+derivative is finite, with no derivative below `-1e-8`; minimum derivatives are
+`0.0004081` in assets and `-3.93e-15` in log capital. These are consistency and
+shape checks, not a mesh-convergence certificate.
+
+The seven-age synthetic loss uses the final 280/241 population as its numerical
+target. It is `0.006257` for corrected 140/121 and `0.0008783` for 280/121; the
+reference zero is mechanical. No empirical fit follows from these losses.
+
+Reproduction, analytic formulas, and reuse checks are in
+[BOUNDARY_REFINEMENT_METHOD.md](BOUNDARY_REFINEMENT_METHOD.md). Saved evidence:
+[time-only comparison](../../output/solver_benchmarks/boundary_time_refinement/report.json),
+[joint comparison](../../output/solver_benchmarks/boundary_state_refinement/report.json),
+[final policy](../../output/solver_benchmarks/boundary_state_refinement/continuous_280_asset241/report.json),
+[population tails](../../output/solver_benchmarks/boundary_state_refinement/population_tail_summary.json),
+and [full-domain shape audit](../../output/solver_benchmarks/boundary_state_refinement/shape_audit.json).
+Source and policy-file hashes are recorded; reused populations are explicitly
+identified and have no new timing attributed to them. No convergence flag has
+been promoted by this benchmark.

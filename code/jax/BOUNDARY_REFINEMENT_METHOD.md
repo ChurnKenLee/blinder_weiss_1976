@@ -91,7 +91,7 @@ After the continuous feasibility implementation and tests pass, run:
 ```bash
 PYTHONPATH=code/jax:tools python tools/validate_boundary_refinement.py \
   --baseline output/solver_benchmarks/bicubic_asset121_fine \
-  --periods 140 280 --quadrature 64 --platform gpu --warm-solves 1 \
+  --periods 140 280 --quadrature 32 --platform gpu --warm-solves 1 \
   --node-diagnostics --output output/solver_benchmarks/boundary_time_refinement
 ```
 
@@ -152,3 +152,33 @@ Source report and path-file hashes are recorded.
 The final candidate supplies the synthetic loss targets, so loss values from
 separate benchmark reports must not be compared unless the targets coincide.
 Reusing a population does not change its initial atom or floor-face weights.
+
+
+## Measured outcome and supplementary audits
+
+The completed order-32 runs isolate a feasibility correction, a time-only
+regression, and an asset refinement that reverses that regression. Native
+retirement Euler RMS is 0.0030468 at continuous 140/121, 0.0056407 at 280/121,
+and 0.0024797 at 280/241. The final grid is 18.6% smoother than continuous 140/121
+on this measure. Warm solve costs are 24.40, 30.89, and 68.82 seconds. See
+[PERFORMANCE.md](PERFORMANCE.md#continuous-feasibility-and-joint-timestate-refinement-2026-09-08)
+for feasibility, utility, moments, and remaining population tails. Neither
+ordinary-moment agreement nor the node diagnostics establish mesh convergence.
+
+The final saved paths support a separate, entirely CPU population-tail audit:
+
+```bash
+PYTHONPATH=code/jax python \
+  output/solver_benchmarks/boundary_state_refinement/summarize_population_tails.py
+```
+
+This records weighted utility-change quantiles, worst types, probability mass of
+large path changes, and retirement Euler RMS on identical eligible pairs for the
+fixed-time asset comparison. Its report hashes the exact input JSON and NPZ.
+The final interpolation shape audit is also reproducible without GPU allocation:
+
+```bash
+JAX_PLATFORMS=cpu PYTHONPATH=code/jax:tools python tools/audit_bellman_shape.py \
+  --folders boundary_state_refinement/continuous_280_asset241 --subdivisions 4 \
+  --output output/solver_benchmarks/boundary_state_refinement/shape_audit.json
+```
