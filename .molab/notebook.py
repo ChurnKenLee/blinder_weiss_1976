@@ -269,9 +269,7 @@ def population_imports(Path, json, np):
 
     from blinder_weiss import (
         BellmanConfig, BellmanSolution, ModelParams,
-        InitialAtom, SyntheticInitialDistribution, initial_quadrature,
-        simulate_population, AgeMomentTarget, CalibrationTargets,
-        MOMENT_UNITS, weighted_age_moment_loss,
+        SyntheticInitialDistribution, initial_quadrature, simulate_population,
     )
 
 
@@ -280,7 +278,8 @@ def population_imports(Path, json, np):
         import jax
         report = json.loads((folder / "report.json").read_text())
         config = BellmanConfig(**report["config"])
-        device = jax.devices(config.compute_platform)[config.device_index]
+        platform = None if config.compute_platform == "auto" else config.compute_platform
+        device = jax.devices(platform)[config.device_index]
         with np.load(folder / "policies.npz") as arrays:
             return BellmanSolution(
                 params=ModelParams(**report["params"]), config=config,
