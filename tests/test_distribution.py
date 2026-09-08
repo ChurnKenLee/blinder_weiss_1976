@@ -203,3 +203,41 @@ def test_scan_reports_occupied_artificial_exit_and_ignores_inactive_nan(solution
 def test_initial_weights_are_probabilities_without_hidden_normalization(grid, mass):
     with pytest.raises(ValueError, match="probability masses"):
         initialize_distribution(grid, [0.1, 0.2], [1.0, 1.0], mass)
+
+
+def test_compiled_scan_enters_moves_along_and_leaves_floor(solution, monkeypatch):
+    grid = DistributionGrid(
+        solution.config.asset_minimum, np.array([0.001001, 0.1, 1.0, 3.0]),
+        np.array([-1.0, 0.0, 0.5, 1.0]),
+    )
+    params = solution.params._replace(
+        interest_rate=0.0, human_capital_productivity=0.0, human_capital_depreciation=0.2
+    )
+    artificial_solution = replace(solution, params=params)
+
+    def recover(current_params, states, _continuation, _policy, terminal):
+        hours = jnp.full(states.shape[0], 0.5)
+        training = jnp.zeros_like(hours)
+        capacity = distribution_module.maximum_feasible_consumption(
+            states[:, 0], states[:, 1], hours, training, current_params,
+            current_params.horizon / solution.config.periods, grid.asset_floor, 1,
+        )
+        consumption = jnp.where(terminal, 0.1, capacity)
+        return jnp.zeros_like(hours), consumption, hours, training
+
+    monkeypatch.setattr(distribution_module, "_cached_greedy_kernels",
+                        lambda *args: (recover, None, jax.devices("cpu")[0]))
+    distribution_module._cached_distribution_scan.cache_clear()
+    initial = initialize_distribution(grid, 1.0, np.exp(0.5))
+    result = simulate_distribution(
+        artificial_solution, grid, initial, participation_hours_threshold=0.01,
+        store_snapshots=True,
+    )
+    np.testing.assert_allclose(result.state_moments.asset_floor_mass, [0, 1, 0], atol=1e-14)
+    np.testing.assert_allclose(result.diagnostics["entered_asset_floor_mass"], [1, 0], atol=1e-14)
+    np.testing.assert_allclose(result.diagnostics["left_asset_floor_mass"], [0, 1], atol=1e-14)
+    np.testing.assert_allclose(result.state_moments.log_human_capital, [0.5, 0.45, 0.4],
+                               atol=1e-14)
+    assert result.masses is not None
+    np.testing.assert_allclose(result.masses.sum(axis=(1, 2)), 1, atol=1e-14)
+    distribution_module._cached_distribution_scan.cache_clear()

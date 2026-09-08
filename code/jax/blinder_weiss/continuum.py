@@ -283,7 +283,7 @@ def simulate_population(
     if backend not in {"quadrature", "cohort", "transport"}:
         raise ValueError("backend must be quadrature, cohort or transport")
     if backend == "transport":
-        from .distribution import initialize_distribution, simulate_distribution
+        from .distribution import build_transport, initialize_distribution, simulate_distribution
 
         if distribution_grid is None:
             raise ValueError("transport requires an explicit distribution_grid")
@@ -308,10 +308,22 @@ def simulate_population(
             log_human_capital=native_state.log_human_capital,
             asset_floor_mass=native_state.asset_floor_mass,
         )
+        initial_stencil = build_transport(
+            distribution_grid,
+            np.column_stack((initial_nodes.assets, np.log(initial_nodes.human_capital))),
+            on_asset_floor=initial_nodes.assets == distribution_grid.asset_floor,
+        )
         diagnostics = (
             asdict(simulation.diagnostics)
             if is_dataclass(simulation.diagnostics)
             else dict(simulation.diagnostics)
+        )
+        initial_weights = initial_nodes.weights / initial_nodes.weights.sum()
+        diagnostics["initial_lower_interior_remap_mass"] = float(
+            initial_weights @ initial_stencil.lower_interior_remap
+        )
+        diagnostics["initial_asset_first_moment_remap_error"] = float(
+            initial_weights @ initial_stencil.asset_remap_error
         )
         return PopulationResult(backend, simulation.moments, state_moments, diagnostics, simulation)
     cohort = simulate_cohort(
