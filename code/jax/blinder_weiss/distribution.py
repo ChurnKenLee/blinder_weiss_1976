@@ -464,6 +464,7 @@ def simulate_distribution(
         "material_exit_mass": checks[:, 4:8],
         "maximum_exit_distance": checks[:, 8:12],
         "maximum_row_sum_error": float(np.max(checks[:, 12])),
+        "row_sum_scope": "occupied feasible source rows",
         "minimum_probability_mass": float(np.min(checks[:, 13])),
         "maximum_mass_drift": float(np.max(np.abs(checks[:, 14]))),
         "lower_interior_remap_mass": checks[:, 15],
