@@ -116,12 +116,20 @@ candidate. Successful termination does not establish global optimality.
 Discrete policy and participation switches can make the loss irregular;
 autodiff gradients are not certified.
 
+The deterministic-reference fields `ModelParams.initial_assets` and
+`initial_human_capital` are rejected by the structural fitter: population nodes
+supply the actual initial conditions, so varying those placeholders cannot
+identify initial heterogeneity. Use the initial-law interface instead.
+
 `evaluate_initial_law` and `fit_initial_law_calibration` reuse a fixed structural
 policy solution to vary initial heterogeneity. Supported scalar inputs include
 asset/log-capital support endpoints, continuous-component correlation,
 `asset_floor_mass`, and `atom_mass` at an explicitly supplied atom index/location.
-Bounds must preserve a valid probability law and remain inside the Bellman
-domain. Point atoms are never inserted implicitly by a fit. These inputs can be
+Bounds must preserve a valid probability law and keep its active declared
+support inside the Bellman domain. Support endpoints are checked directly:
+interior Gauss nodes alone can miss a small out-of-domain tail at low order.
+Active point atoms are checked as well, before any objective evaluation.
+Point atoms are never inserted implicitly by a fit. These inputs can be
 estimated only with identifying measurements; structural parameters and the
 initial law may otherwise offset each other. The synthetic sensitivity output
 is a numerical exercise, not a claim of joint empirical identification.
