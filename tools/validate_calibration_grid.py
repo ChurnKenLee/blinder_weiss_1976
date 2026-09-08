@@ -152,7 +152,10 @@ def _hash(path: Path) -> str:
 
 def load_solution(folder: Path, platform: str) -> tuple[BellmanSolution, dict[str, Any]]:
     report = json.loads((folder / "report.json").read_text())
-    config = replace(BellmanConfig(**{"asset_feasibility": "checkpoints", **report["config"]}), compute_platform=platform, device_index=0)
+    config = replace(
+        BellmanConfig(**{"asset_feasibility": "checkpoints", **report["config"]}),
+        compute_platform=platform, device_index=0,
+    )
     devices = jax.devices(platform)
     device = devices[0]
     with np.load(folder / "policies.npz") as arrays:
