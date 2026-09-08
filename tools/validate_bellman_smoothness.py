@@ -20,7 +20,7 @@ _INITIAL_ASSETS = np.array([5.0, 2.0, 8.0])
 _INITIAL_CAPITAL = np.array([1.0, 0.8, 1.2])
 
 
-def summarize(solution, states, controls, policy_values, direct_utilities):
+def summarize(solution, states, controls, direct_utilities):
     diagnostic = retirement_euler_diagnostics(
         solution.time,
         controls[..., 0],
@@ -34,7 +34,6 @@ def summarize(solution, states, controls, policy_values, direct_utilities):
         "config": asdict(solution.config),
         "lifetime_utility": utility.tolist(),
         "direct_reference_utility_shortfall": (direct_utilities - utility).tolist(),
-        "recovered_value_minus_realized_utility": (policy_values[0] - utility).tolist(),
         "retired_pair_count": diagnostic.count.tolist(),
         "retirement_euler_rms_per_year": diagnostic.root_mean_square.tolist(),
         "retirement_euler_maximum_absolute_per_year": diagnostic.maximum_absolute.tolist(),
@@ -65,9 +64,10 @@ def main():
             arrays.update({name: data[name] for name in data.files})
     references = []
     for name in ("direct_reference", "direct_type_low", "direct_type_high"):
-        with np.load(args.root / f"{name}.npz") as data:
-            # Direct utility is computed by the original validated solve.
-            references.append(float(data["utility"]))
+        reference = json.loads((args.root / f"{name}.json").read_text())
+        if not reference["diagnostics"]["accepted_success"]:
+            raise ValueError(f"Independent reference {name} is not accepted")
+        references.append(float(reference["lifetime_utility"]))
     direct_utilities = np.asarray(references)
     report = {
         "type_names": ["baseline", "low", "high"],
@@ -87,13 +87,11 @@ def main():
             simulation = simulate_cohort(solution, _INITIAL_ASSETS, _INITIAL_CAPITAL)
             arrays[f"{folder}_states"] = simulation.states
             arrays[f"{folder}_controls"] = simulation.controls
-            arrays[f"{folder}_policy_values"] = simulation.policy_values
         arrays[f"{folder}_time"] = solution.time
         summary, diagnostic = summarize(
             solution,
             arrays[f"{folder}_states"],
             arrays[f"{folder}_controls"],
-            arrays[f"{folder}_policy_values"],
             direct_utilities,
         )
         report["runs"][folder] = summary
