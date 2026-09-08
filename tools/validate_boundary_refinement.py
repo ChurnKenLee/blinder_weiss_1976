@@ -14,6 +14,7 @@ from dataclasses import asdict, replace
 from math import lcm
 from pathlib import Path
 from time import perf_counter
+from types import SimpleNamespace
 from typing import Any, cast
 
 import numpy as np
@@ -264,6 +265,56 @@ def audit_nodes(solution, tolerance):
     }
 
 
+def population_from_saved(solution, nodes, saved_run, stored_arrays, source_path):
+    """Reconstruct the measurement interface from a verified prior rollout."""
+    prefix = saved_run["array_prefix"]
+    states, controls, time, values = (
+        stored_arrays[f"{prefix}_{name}"]
+        for name in ("states", "controls", "time", "policy_values")
+    )
+    if not np.array_equal(time, solution.time):
+        raise ValueError("cached population time grid differs from the requested policy")
+    weights = nodes.weights
+    if not np.array_equal(states[0, :, 0], nodes.assets) or not np.allclose(
+        np.exp(states[0, :, 1]), nodes.human_capital, rtol=2e-15, atol=0
+    ):
+        raise ValueError("cached population initial states differ from quadrature")
+    consumption, hours, training = np.moveaxis(controls, -1, 0)
+    moments = CohortMoments(
+        time=time[:-1],
+        consumption=consumption @ weights,
+        hours=hours @ weights,
+        training_time=training @ weights,
+        participation=(hours > 0.02) @ weights,
+        earnings=(earnings_share(hours, training) * np.exp(states[:-1, :, 1])) @ weights,
+        participation_hours_threshold=0.02,
+    )
+    state_moments = PopulationStateMoments(
+        time=time,
+        assets=states[..., 0] @ weights,
+        human_capital=np.exp(states[..., 1]) @ weights,
+        log_human_capital=states[..., 1] @ weights,
+        asset_floor_mass=stored_arrays[f"{prefix}_native_floor_mass"],
+    )
+    simulation = SimpleNamespace(
+        time=time,
+        states=states,
+        controls=controls,
+        policy_values=values,
+        consumption=consumption,
+        hours=hours,
+        assets=states[..., 0],
+        log_human_capital=states[..., 1],
+    )
+    return PopulationResult(
+        "quadrature",
+        moments,
+        state_moments,
+        {"saved_population_source": str(source_path)},
+        simulation,
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -272,7 +323,19 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--platform", choices=["cpu", "gpu"], default="cpu")
     parser.add_argument("--periods", nargs="+", type=int, default=[140, 280])
-    parser.add_argument("--candidate-folders", nargs="*", type=Path, default=[])
+    parser.add_argument(
+        "--candidate-folders",
+        nargs="*",
+        type=Path,
+        default=[],
+        help="One folder per candidate; use - to solve that candidate",
+    )
+    parser.add_argument("--asset-nodes", nargs="+", type=int)
+    parser.add_argument(
+        "--reuse-populations",
+        type=Path,
+        help="Prior report with matching policy hashes and quadrature paths",
+    )
     parser.add_argument("--quadrature", type=int, default=16)
     parser.add_argument("--common-periods", type=int)
     parser.add_argument("--warm-solves", type=int, default=1)
@@ -289,10 +352,20 @@ def main():
     if original["config"].get("asset_feasibility", "checkpoints") != "checkpoints":
         parser.error("baseline must use checkpoint feasibility")
     baseline = replace(baseline, config=replace(baseline.config, asset_feasibility="checkpoints"))
-    if args.periods[0] != baseline.config.periods or any(np.diff(args.periods) <= 0):
-        parser.error(
-            "first continuous period count must match baseline; later counts must increase"
+    asset_counts = args.asset_nodes or [baseline.config.asset_nodes] * len(args.periods)
+    if len(asset_counts) != len(args.periods) or min(asset_counts) < 2:
+        parser.error("asset-nodes must specify one size >=2 per candidate")
+    if args.periods[0] != baseline.config.periods or asset_counts[0] != baseline.config.asset_nodes:
+        parser.error("first continuous candidate must retain baseline time and asset grids")
+    if np.any(np.diff(args.periods) < 0) or np.any(np.diff(asset_counts) < 0):
+        parser.error("time and asset grids must be nondecreasing")
+    if any(
+        a == b and c == d
+        for a, b, c, d in zip(
+            args.periods[:-1], args.periods[1:], asset_counts[:-1], asset_counts[1:], strict=True
         )
+    ):
+        parser.error("successive continuous candidates must differ in time or asset grid")
     common_periods = args.common_periods or lcm(baseline.config.periods, *args.periods)
     if common_periods < 1:
         parser.error("common-periods must be positive")
@@ -338,17 +411,43 @@ def main():
         "common_state_time": state_time,
         "common_moment_time": moment_time,
     }
+    cached_report, cached_arrays = None, None
+    if args.reuse_populations:
+        cached_report = json.loads(args.reuse_populations.read_text())
+        if (
+            cached_report["initial_law"] != json.loads(json.dumps(asdict(law)))
+            or cached_report["quadrature_order"] != args.quadrature
+        ):
+            raise ValueError(
+                "cached populations require exactly the same initial law and quadrature"
+            )
+        with np.load(args.reuse_populations.parent / "paths.npz") as archive:
+            cached_arrays = {name: archive[name] for name in archive.files}
+        if not np.array_equal(cached_arrays["weights"], nodes.weights):
+            raise ValueError("cached population weights differ")
+        report["population_reuse_source"] = {
+            "report": str(args.reuse_populations),
+            "report_sha256": _hash(args.reuse_populations),
+            "paths_sha256": _hash(args.reuse_populations.parent / "paths.npz"),
+        }
     solutions = [baseline]
-    for index, periods in enumerate(args.periods):
-        if args.candidate_folders:
-            solution, _ = load_solution(args.candidate_folders[index], args.platform)
-            expected = replace(baseline.config, periods=periods, asset_feasibility="continuous")
+    solution_folders = [args.baseline]
+    for index, (periods, asset_count) in enumerate(zip(args.periods, asset_counts, strict=True)):
+        expected = replace(
+            baseline.config,
+            periods=periods,
+            asset_nodes=asset_count,
+            asset_feasibility="continuous",
+        )
+        folder = args.candidate_folders[index] if args.candidate_folders else Path("-")
+        if folder != Path("-"):
+            solution, _ = load_solution(folder, args.platform)
             if solution.config != expected or solution.params != baseline.params:
                 raise ValueError(
-                    "candidate configuration differs beyond feasibility mode and periods"
+                    "candidate differs beyond declared feasibility, time, and asset settings"
                 )
         else:
-            config = replace(baseline.config, periods=periods, asset_feasibility="continuous")
+            config = expected
             timings = []
             for repetition in range(1 + args.warm_solves):
                 started = perf_counter()
@@ -362,16 +461,40 @@ def main():
                     }
                 )
                 print(json.dumps({"phase": "solve", "periods": periods, **timings[-1]}), flush=True)
-            save_solution(solution, args.output / f"continuous_{periods}", timings)
+            suffix = f"_asset{asset_count}" if asset_count != baseline.config.asset_nodes else ""
+            folder = args.output / f"continuous_{periods}{suffix}"
+            save_solution(solution, folder, timings)
         solutions.append(solution)
+        solution_folders.append(folder)
     populations, profiles_by_run, raw_states, raw_controls = [], [], [], []
     for index, solution in enumerate(solutions):
         label = f"{solution.config.asset_feasibility}_{solution.config.periods}"
-        started = perf_counter()
-        population = simulate_population(
-            solution, nodes, backend="quadrature", participation_hours_threshold=0.02
-        )
-        seconds = perf_counter() - started
+        if solution.config.asset_nodes != baseline.config.asset_nodes:
+            label += f"_asset{solution.config.asset_nodes}"
+        policy_hash = _hash(solution_folders[index] / "policies.npz")
+        saved_run = None
+        if cached_report is not None:
+            saved_run = next(
+                (
+                    row
+                    for row in cached_report["runs"]
+                    if row.get("solution_policy_sha256") == policy_hash
+                    and row["config"] == asdict(solution.config)
+                    and row["params"] == solution.params._asdict()
+                ),
+                None,
+            )
+        if saved_run is not None:
+            population = population_from_saved(
+                solution, nodes, saved_run, cached_arrays, args.reuse_populations
+            )
+            seconds = None
+        else:
+            started = perf_counter()
+            population = simulate_population(
+                solution, nodes, backend="quadrature", participation_hours_threshold=0.02
+            )
+            seconds = perf_counter() - started
         sim = population.simulation
         audit, minima, minimum_times = path_audit(
             sim.time,
@@ -414,6 +537,12 @@ def main():
         utility = lifetime_utilities(sim.time, sim.states, sim.controls, solution.params)
         row = {
             "label": label,
+            "array_prefix": f"run_{index}",
+            "solution_folder": str(solution_folders[index]),
+            "solution_policy_sha256": policy_hash,
+            "population_reused_from": str(args.reuse_populations)
+            if saved_run is not None
+            else None,
             "config": asdict(solution.config),
             "params": solution.params._asdict(),
             "population_seconds_including_first_compile": seconds,
@@ -430,7 +559,11 @@ def main():
             "maximum_log_human_capital": float(sim.log_human_capital.max()),
         }
         if args.node_diagnostics:
-            row["node_diagnostics"] = diagnose_bellman(solution).as_dict()
+            row["node_diagnostics"] = (
+                saved_run["node_diagnostics"]
+                if saved_run is not None and "node_diagnostics" in saved_run
+                else diagnose_bellman(solution).as_dict()
+            )
         report["runs"].append(row)
         for key, value in {
             "time": sim.time,
@@ -474,7 +607,7 @@ def main():
         ),
         20.0,
         0.02,
-        "synthetic finest continuous-time-grid quadrature reference; no empirical data",
+        "synthetic final continuous-candidate quadrature reference; no empirical data",
     )
     report["loss_targets"] = {
         "source": targets.source,
@@ -506,7 +639,16 @@ def main():
         comparison = {
             "from": first["label"],
             "to": second["label"],
-            "kind": "feasibility_method" if index == 1 else "time_refinement",
+            "kind": (
+                "feasibility_method"
+                if index == 1
+                else "joint_time_asset_refinement"
+                if earlier.config.periods != later.config.periods
+                and earlier.config.asset_nodes != later.config.asset_nodes
+                else "time_refinement"
+                if earlier.config.periods != later.config.periods
+                else "asset_refinement"
+            ),
             "configuration_changes": {
                 key: {"from": first["config"][key], "to": value}
                 for key, value in second["config"].items()
@@ -542,7 +684,7 @@ def main():
     report["limitations"] = [
         "Checkpoint policies may earn higher utility by violating the continuous constraint.",
         "The finest time grid is a numerical reference, not converged truth.",
-        "Bellman state/control grids, initial quadrature, and artificial domains remain fixed.",
+        "Only explicitly declared time/asset settings change; control search, quadrature, and domain remain fixed.",
         "Standardized loss scales are numerical choices, not survey uncertainty estimates.",
     ]
     _write_json(args.output / "report.json", report)
