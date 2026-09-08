@@ -245,11 +245,7 @@ def main():
         arrays[f"{prefix}_initial_weights"] = nodes.weights
         arrays[f"{prefix}_initial_component"] = nodes.component
         for name in MOMENT_UNITS:
-            owner = (
-                population.moments
-                if hasattr(population.moments, name)
-                else population.state_moments
-            )
+            owner = moment_owner(population, name)
             value = getattr(owner, name)
             if value is not None:
                 arrays[f"{prefix}_{name}"] = value
