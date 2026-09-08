@@ -44,6 +44,23 @@ retirement values but worsened full-model utility and did not improve jitter;
 it was removed from production and preserved only as a reproducible
 [rejected experiment](../../output/solver_benchmarks/experiments/utility_coordinate/).
 
+On the historical fixed 256-type weighted cohort, the paired refinement check
+reduces the weighted Euler RMS on identical retired time pairs by **57.9%**:
+0.006885 to 0.002897. The maximum absolute recovered-value minus realized-utility
+gap falls from 0.283608 to 0.035358 (87.5%). Weighted realized utility rises by
+0.005163, with 94.94% of population mass improving. This cohort uses the prior
+seed-125 initial states and weights; it is distinct from the new correlated
+continuum mixture with floor and point atoms.
+
+Moment RMS changes are consumption 0.001338, hours 0.001044, training 0.001001,
+earnings 0.003169 and participation 0.003595 (0.36 percentage points). Individual
+tails remain important: type 33 loses 0.009084 utility, while type 158 changes
+its asset path by as much as 11.235 and gains 0.278917 utility. These results
+support the refinement but do not establish population mesh convergence. See
+[paired population validation](../../output/solver_benchmarks/asset_refinement_population.json),
+[population Euler diagnostics](../../output/solver_benchmarks/asset_refinement_population_smoothness.json),
+and [tail summary](../../output/solver_benchmarks/asset_refinement_population_tail_summary.json).
+
 Reproduce the refined solution and the comparison:
 
 ```bash

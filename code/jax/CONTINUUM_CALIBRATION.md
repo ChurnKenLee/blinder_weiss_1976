@@ -51,6 +51,15 @@ face, and leave it when the policy points inward. Human-capital limits and the
 upper asset limit are artificial cutoffs, not absorbing economic boundaries.
 Material active-mass exits raise an error with diagnostics.
 
+Constraint contact is classified identically for quadrature and transport.
+Exact equality identifies initial floor atoms. Subsequent contacts require both
+the endpoint asset residual and consumption-capacity slack to fit a float64
+roundoff budget scaled by the asset transition's cancellation terms. A bitwise
+comparison of separately compiled consumption limits was found to miss true
+contacts and spuriously alternate face mass with the first interior row. The
+shared classifier fixes that failure; a 140-period regression checks repeated
+contact while a separate test preserves genuinely slack interior states.
+
 This follows the deterministic distribution approach described by
 [Young](https://www.wouterdenhaan.com/suite/finalversion-young.pdf).
 The need to retain constraint mass separately from an interior density is also
