@@ -337,10 +337,17 @@ def boundary_refinement_view(
         _axis.grid(alpha=0.2)
         _axis.legend(fontsize=7)
     plt.close(_refinement_figure)
+    _joint_note = ""
+    if len(boundary_refinement_report["runs"]) >= 4:
+        _starting_jitter = boundary_refinement_report["runs"][1]["weighted_retirement_euler_rms_per_year"]
+        _final_jitter = boundary_refinement_report["runs"][-1]["weighted_retirement_euler_rms_per_year"]
+        _joint_note = (f"The joint time/asset refinement lowers retirement consumption Euler RMS "
+                       f"by {1 - _final_jitter / _starting_jitter:.1%} relative to the original continuous-feasible grid. ")
     mo.vstack([
         mo.md("**Constraint and refinement checks.** These comparisons keep the same initial distribution, including its 5% point atom, "
               "and compare moments at shared physical ages. Exact full-period feasibility removes the missed dips below the numerical floor. "
-              "Refining time alone increases consumption jitter on the fixed asset grid; the denser asset-grid experiment is reported separately. "
+              "Refining time alone increases consumption jitter on the fixed asset grid. "
+              + _joint_note +
               "A smaller floor violation is a feasibility result, while smoothness and calibration stability require their own checks."),
         mo.ui.table(_refinement_rows, selection=None),
         _refinement_figure,
