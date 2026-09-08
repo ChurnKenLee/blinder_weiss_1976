@@ -565,10 +565,13 @@ def maximum_feasible_consumption(
         left, right = jax.lax.fori_loop(0, 32, bisect, (left, right))
         return jnp.where(active, (left + right) / 2.0, total)
 
-    critical_time = jax.lax.stop_gradient(jax.lax.cond(
+    root_time = jax.lax.stop_gradient(jax.lax.cond(
         jnp.any(interior_binding), binding_time,
         lambda _: jnp.full_like(endpoint, duration), operand=None,
     ))
+    # At an endpoint minimum, changing the period length changes the bound.
+    # Only an interior minimizing time receives the envelope stop-gradient.
+    critical_time = jnp.where(interior_binding, root_time, duration)
     interior_capacity = endpoint_consumption_capacity(
         assets, log_human_capital, hours, training_time, params, critical_time, asset_minimum
     )
@@ -2090,7 +2093,9 @@ def simulate_policy(
         params, step,
     ))))
     if config.asset_feasibility == "continuous":
-        stayed_in_domain = stayed_in_domain and path_minimum >= config.asset_minimum - _DOMAIN_TOLERANCE
+        stayed_in_domain = stayed_in_domain and (
+            path_minimum >= config.asset_minimum - _DOMAIN_TOLERANCE
+        )
     return BellmanSimulation(
         solution=solution,
         policy_method=policy_method,
@@ -2144,7 +2149,9 @@ def diagnose_bellman(
         next_states = constant_control_transition(state_nodes, controls, params, step)
         minimum_node_path_assets = min(
             minimum_node_path_assets,
-            float(np.min(np.asarray(minimum_assets_during_step(state_nodes, controls, params, step)))),
+            float(np.min(np.asarray(
+                minimum_assets_during_step(state_nodes, controls, params, step)
+            ))),
         )
         if period == config.periods - 1:
             continuation = bequest_utility(

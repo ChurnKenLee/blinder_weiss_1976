@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import cast
 
 import jax
 import jax.numpy as jnp
@@ -15,7 +16,7 @@ from blinder_weiss.bellman import (
 )
 from blinder_weiss.model import effective_earnings_share
 from scipy.integrate import quad
-from scipy.optimize import brentq, minimize_scalar
+from scipy.optimize import OptimizeResult, brentq, minimize_scalar
 
 
 def exprel(value):
@@ -24,7 +25,8 @@ def exprel(value):
 
 def reference_capacity(assets, log_k, hours, training, params, step, floor):
     growth = params.human_capital_productivity * training - params.human_capital_depreciation
-    earnings = float(effective_earnings_share(jnp.asarray(hours), jnp.asarray(training))) * np.exp(log_k)
+    earnings = float(effective_earnings_share(jnp.asarray(hours), jnp.asarray(training)))
+    earnings *= np.exp(log_k)
     rate = params.interest_rate
     endpoint = (
         rate * floor + (assets - floor) / (step * exprel(-rate * step))
@@ -122,13 +124,13 @@ def test_analytical_minimum_matches_independent_scalar_search(rate):
         w *= np.exp(state[1])
         growth = params.human_capital_productivity * control[2] - params.human_capital_depreciation
 
-        def assets_at(time):
+        def assets_at(time, w=w, growth=growth, control=control):
             return (np.exp(rate * time) * (state[0] + w * time * exprel((growth-rate)*time))
                     - control[0] * time * exprel(rate*time))
 
         result = minimize_scalar(assets_at, bounds=(0.0, 2.0), method="bounded",
                                  options={"xatol": 1e-13})
-        reference = min(assets_at(0), assets_at(2), float(result.fun))
+        reference = min(assets_at(0), assets_at(2), float(cast(OptimizeResult, result).fun))
         actual = float(minimum_assets_during_step(jnp.asarray(state), jnp.asarray(control),
                                                   params, 2.0))
         assert actual == pytest.approx(reference, abs=2e-13)
