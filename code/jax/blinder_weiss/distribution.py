@@ -318,7 +318,10 @@ def _cached_distribution_scan(
         states = jnp.stack((assets.ravel(), log_k.ravel()), axis=-1)
         state_observables = jnp.stack(
             (states[:, 0], jnp.exp(states[:, 1]), states[:, 1],
-             (states[:, 0] == config.asset_minimum).astype(jnp.float64)), axis=-1
+             (states[:, 0] == config.asset_minimum).astype(jnp.float64),
+             (states[:, 0] >= interior_assets[-2]).astype(jnp.float64),
+             (states[:, 1] <= log_k_nodes[1]).astype(jnp.float64),
+             (states[:, 1] >= log_k_nodes[-2]).astype(jnp.float64)), axis=-1
         )
         floor_source = states[:, 0] == config.asset_minimum
         step = params.horizon / config.periods
@@ -429,6 +432,10 @@ def simulate_distribution(
     of positive mass raise ``DistributionDomainError`` carrying diagnostics;
     expand the distribution/Bellman domains and rerun in that case. The
     positive numerical floor and first-cell spreading require convergence.
+    ``outer_cell_mass`` reports all-age probability at the nodes of each
+    artificial outermost grid cell, including its inner endpoint. Face counts
+    may overlap; they diagnose boundary exposure even when the Bellman policy
+    rejects outward controls and recorded attempted exits are zero.
     """
     threshold = float(participation_hours_threshold)
     if not np.isfinite(threshold) or not 0 <= threshold < 1:
@@ -460,6 +467,13 @@ def simulate_distribution(
     ))
     diagnostics = {
         "exit_face_order": ("asset_floor", "asset_upper", "log_k_lower", "log_k_upper"),
+        "outer_cell_face_order": ("asset_upper", "log_k_lower", "log_k_upper"),
+        "outer_cell_mass": state_array[:, 4:7],
+        "outer_cell_thresholds": {
+            "asset_upper_at_least": float(grid.asset_interior_nodes[-2]),
+            "log_k_lower_at_most": float(grid.log_human_capital_nodes[1]),
+            "log_k_upper_at_least": float(grid.log_human_capital_nodes[-2]),
+        },
         "attempted_exit_mass": checks[:, :4],
         "material_exit_mass": checks[:, 4:8],
         "maximum_exit_distance": checks[:, 8:12],

@@ -139,6 +139,8 @@ def test_full_lifecycle_conservation_and_cohort_first_period(solution):
     assert result.diagnostics["maximum_row_sum_error"] < 1e-12
     assert result.diagnostics["minimum_probability_mass"] >= 0
     assert result.diagnostics["completed_periods"] == 2
+    assert result.diagnostics["outer_cell_mass"].shape == (3, 3)
+    np.testing.assert_allclose(result.diagnostics["outer_cell_mass"][0], [0.6, 0, 0])
     assert not result.diagnostics["accepted_for_calibration_default"]
     np.testing.assert_array_equal(result.state_moments.time, solution.time)
     cohort = simulate_cohort(solution, [5.0, 8.0], 1.0, weights=[0.4, 0.6])

@@ -281,5 +281,40 @@ def population_controls(mo):
     return
 
 
+@app.cell(hide_code=True)
+def continuum_benchmark_table(
+    benchmark_directory,
+    github_sync_refresh,
+    json,
+    mo,
+):
+    github_sync_refresh.value
+    continuum_benchmark_path = benchmark_directory / "continuum_gpu"
+    continuum_benchmark_report = (
+        json.loads((continuum_benchmark_path / "report.json").read_text())
+        if (continuum_benchmark_path / "report.json").exists() else None
+    )
+    _rows = []
+    if continuum_benchmark_report is not None:
+        for _name, _result in continuum_benchmark_report.get("backends", {}).items():
+            _difference = _result.get("maximum_absolute_difference_from_refined_quadrature", {})
+            _rows.append({
+                "Method / resolution": _name,
+                "Completed": _result.get("accepted", False),
+                "Warm population seconds": _result.get("warm_population", {}).get("wall_seconds"),
+                "Max hours difference": _difference.get("hours"),
+                "Max participation difference": _difference.get("participation"),
+                "Max floor-mass difference": _difference.get("asset_floor_mass"),
+                "Mass drift": _result.get("diagnostics", {}).get("maximum_mass_drift"),
+            })
+    mo.vstack([
+        mo.md("**Population resolution comparison.** Differences use the highest quadrature order "
+              "in the saved run. Completion means the numerical checks passed; transport remains "
+              "an optional approximation pending moment convergence."),
+        mo.ui.table(_rows, selection=None) if _rows else mo.md("The GPU comparison is being prepared."),
+    ])
+    return
+
+
 if __name__ == "__main__":
     app.run()

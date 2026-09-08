@@ -40,7 +40,6 @@ def main() -> None:
     parser.add_argument(
         "--interpolation", choices=["bilinear", "pchip", "monotone_bicubic"], default="bilinear"
     )
-    parser.add_argument("--bicubic-asset-power", type=float, default=1.0)
     parser.add_argument("--diagnostics", action="store_true")
     args = parser.parse_args()
     if args.repeats < 1:
@@ -60,7 +59,6 @@ def main() -> None:
         refinement_starts=args.refinement_starts,
         control_batch_size=args.batch_size,
         value_interpolation=args.interpolation,
-        bicubic_asset_power=args.bicubic_asset_power,
         neighbor_destination_candidates=args.neighbor_destinations,
         neighbor_policy_sweeps=args.neighbor_sweeps,
         neighbor_policy_tolerance=args.neighbor_tolerance,

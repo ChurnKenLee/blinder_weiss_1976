@@ -34,31 +34,12 @@ SOFTWARE.
 
 from __future__ import annotations
 
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 from jax import Array
 from jax.typing import ArrayLike
 
 from .bellman_interpolation import _hermite, _left_index, pchip_slopes
-
-
-def asset_utility_coordinate(assets: ArrayLike, power: float = 1.0) -> Array:
-    """Increasing power coordinate; power zero selects log assets.
-
-    Positive assets are required except for the unchanged identity coordinate.
-    An all-retired value with matching CRRA power is affine in this coordinate,
-    so cubic reconstruction reproduces that value and its marginal utility.
-    The transform changes interpolation geometry, never the physical state grid.
-    """
-
-    assets = jnp.asarray(assets)
-    if power == 1.0:
-        return assets
-    if power == 0.0:
-        return jnp.log(assets)
-    return assets**power / power
 
 
 def _constraint_differences(values: Array) -> Array:
@@ -237,14 +218,11 @@ def _twist_bounds(
     return lower, upper
 
 
-@partial(jax.jit, static_argnames=("asset_power",))
+@jax.jit
 def prepare_monotone_bicubic(
-    values: Array, asset_grid: Array, log_human_capital_grid: Array, *, asset_power: float = 1.0
+    values: Array, asset_grid: Array, log_human_capital_grid: Array
 ) -> Array:
-    """Prepare value and coordinate derivatives once per Bellman age.
-
-    With ``asset_power != 1``, asset derivatives are with respect to the
-    increasing utility coordinate, and evaluation must use the same power.
+    """Prepare ``[V, V_A, V_z, V_Az]`` once per Bellman age.
 
     Grids must be strictly increasing with at least two nodes per axis. Input
     values are reproduced exactly, including any existing nodal violation of
@@ -257,7 +235,7 @@ def prepare_monotone_bicubic(
     """
 
     values = jnp.asarray(values)
-    asset_grid = asset_utility_coordinate(asset_grid, asset_power)
+    asset_grid = jnp.asarray(asset_grid)
     log_grid = jnp.asarray(log_human_capital_grid)
     asset_slopes = _limit_edge_slopes(asset_grid, values, pchip_slopes(asset_grid, values))
     log_slopes = _limit_edge_slopes(log_grid, values.T, pchip_slopes(log_grid, values.T)).T
@@ -283,12 +261,11 @@ def prepare_monotone_bicubic(
 
 
 def bicubic_constraint_violations(
-    prepared: Array, asset_grid: Array, log_human_capital_grid: Array, *, asset_power: float = 1.0
+    prepared: Array, asset_grid: Array, log_human_capital_grid: Array
 ) -> dict[str, Array]:
     """Maximum algebraic residuals; ``value_monotonicity`` checks inputs too."""
 
     values, asset_slopes, log_slopes, twists = prepared
-    asset_grid = asset_utility_coordinate(asset_grid, asset_power)
     log_grid = log_human_capital_grid
     edge_violation = jnp.maximum(
         jnp.max(jnp.abs(asset_slopes - _limit_edge_slopes(asset_grid, values, asset_slopes))),
@@ -330,7 +307,6 @@ def monotone_bicubic_interpolate(
     *,
     asset_grid_curvature: float | None = None,
     uniform_log_grid: bool = False,
-    asset_power: float = 1.0,
 ) -> Array:
     """Evaluate prepared bicubic Hermite, clipping queries to the state domain."""
 
@@ -342,10 +318,6 @@ def monotone_bicubic_interpolate(
     )
     i = _left_index(asset_grid, asset_query, asset_grid_curvature)
     j = _left_index(log_grid, log_query, 1.0 if uniform_log_grid else None)
-    # Locate cells in physical assets before transforming. The O(1) lookup
-    # for a curved physical grid remains valid for every coordinate power.
-    asset_grid = asset_utility_coordinate(asset_grid, asset_power)
-    asset_query = asset_utility_coordinate(asset_query, asset_power)
     asset_width = asset_grid[i + 1] - asset_grid[i]
     log_width = log_grid[j + 1] - log_grid[j]
     asset_weight = (asset_query - asset_grid[i]) / asset_width
