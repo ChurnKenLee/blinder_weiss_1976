@@ -106,6 +106,40 @@ from floor atoms. These errors must be judged against empirical uncertainty and
 the loss changes the calibration optimizer needs to resolve. The full design
 and acceptance criteria remain in [CONTINUUM_FORWARD_MEMO.md](../../CONTINUUM_FORWARD_MEMO.md).
 
+## Measured GPU pilot (2026-09-08)
+
+The [completed comparison](../../output/solver_benchmarks/continuum_gpu/report.json)
+uses the refined 121×79 Bellman grid with 140 decision periods. All three
+transport resolutions remain nonnegative, with mass drift at most 4.45e-16 and
+row-sum error at most 2.23e-16. The following differences use quadrature order
+64 as the reference; that reference is not a continuum convergence certificate.
+
+| Population approximation | Warm population seconds | Synthetic loss | Max participation difference | Max floor-mass difference |
+|---|---:|---:|---:|---:|
+| IID cohort, 256 people | 3.38 | 0.09862 | 0.03921 | 0.02228 |
+| Quadrature 8×8 | 3.17 | 0.34695 | 0.04713 | 0.02614 |
+| Quadrature 16×16 | 3.29 | 0.01667 | 0.02586 | 0.00953 |
+| Quadrature 32×32 | 3.66 | 0.000886 | 0.005326 | 0.005537 |
+| Quadrature 64×64 | 5.06 | reference | — | — |
+| Transport 31×31 | 3.85 | 7.75765 | 0.25182 | 0.06916 |
+| Transport 61×61 | 4.92 | 2.75991 | 0.17371 | 0.29147 |
+| Transport 121×121 | 10.50 | 0.46411 | 0.11005 | 0.15934 |
+
+Participation and floor-mass differences are fractions: 0.11 means 11 percentage
+points. Quadrature 32→64 changes maximum hours by 0.001093, consumption by
+0.000901, earnings by 0.003281, and mean assets by 0.02211. Transport refinement
+reduces the aggregate loss but does not uniformly improve floor mass. Neither
+conservation nor small row-sum error is sufficient for calibration accuracy.
+
+First Bellman solve wall time is 20.20 s, with a separately observed 7.56 s
+backend-compile event; repeated solves take 9.38 s. Complete warm solve-and-loss
+calls take 14.47–14.48 s for quadrature64, versus 19.88 s for transport121 and
+12.76–12.79 s for the 256-person cohort. Parameter perturbations of ±2% in
+leisure weight reuse compilation at fixed shape. The one-parameter quadrature
+fit terminates successfully after 12 evaluations at leisure weight **1.000113**
+(known value 1.0, absolute error 0.000113, standardized loss 4.08e-6).
+This is successful synthetic recovery, not an empirical parameter estimate.
+
 ## Boundary accuracy in the lifecycle benchmark
 
 The rounding fix protects a separate reproducible arithmetic failure. It did
