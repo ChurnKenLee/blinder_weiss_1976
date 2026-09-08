@@ -13,8 +13,11 @@ from .bellman import (  # noqa: E402
     BellmanSolution,
     constant_control_transition,
     diagnose_bellman,
+    endpoint_consumption_capacity,
     greedy_policy_at,
     greedy_policy_value_at,
+    maximum_feasible_consumption,
+    minimum_assets_during_step,
     policy_at,
     simulate_policy,
     solve_bellman,
@@ -36,8 +39,13 @@ from .calibration import (  # noqa: E402
     AgeMomentTarget,
     CalibrationEvaluation,
     CalibrationTargets,
+    InitialLawCalibrationEvaluation,
     MomentLoss,
+    NumericalAcceptanceThresholds,
+    compare_calibration_resolutions,
     evaluate_calibration,
+    evaluate_initial_law,
+    fit_initial_law_calibration,
     fit_scalar_calibration,
     weighted_age_moment_loss,
 )
@@ -50,6 +58,7 @@ from .continuum import (  # noqa: E402
     initial_quadrature,
     sample_initial_population,
     simulate_population,
+    synthetic_initial_scenarios,
 )
 from .diagnostics import (  # noqa: E402
     PathDiagnostics,
@@ -88,6 +97,16 @@ from .solver import (  # noqa: E402
 )
 
 __all__ = [
+    "endpoint_consumption_capacity",
+    "maximum_feasible_consumption",
+    "minimum_assets_during_step",
+    "InitialLawCalibrationEvaluation",
+    "NumericalAcceptanceThresholds",
+    "compare_calibration_resolutions",
+    "evaluate_initial_law",
+    "fit_initial_law_calibration",
+    "synthetic_initial_scenarios",
+
     "RetirementEulerDiagnostics",
     "retirement_euler_diagnostics",
     "DistributionDomainError",

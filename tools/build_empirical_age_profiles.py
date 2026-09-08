@@ -48,10 +48,13 @@ def records(directory: Path, names: list[str]):
             raw = raw.rstrip(b"\r\n")
             if len(raw) != width:
                 raise ValueError("Unexpected fixed-width record length")
-            yield {
-                name: float(raw[columns[name][0] : columns[name][1]]) / 10 ** columns[name][2]
-                for name in names
-            }
+            result = {}
+            for name in names:
+                start, end, decimals = columns[name]
+                token = raw[start:end]
+                unscaled = float(token) if b"." in token else int(token)
+                result[name] = unscaled / 10**decimals if decimals else unscaled
+            yield result
 
 
 def accumulate(groups, age: int, sex: int, weight: float, observables: dict):
@@ -68,6 +71,8 @@ def accumulate(groups, age: int, sex: int, weight: float, observables: dict):
         row["squared_weight"] += weight * weight
         row["weighted_age"] += weight * age
         for name, value in observables.items():
+            row[name + "_numerator"] += 0.0
+            row[name + "_denominator"] += 0.0
             if value is not None:
                 row[name + "_numerator"] += weight * value
                 row[name + "_denominator"] += weight
