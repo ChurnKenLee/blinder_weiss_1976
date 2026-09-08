@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .bellman import BellmanConfig, BellmanSolution, maximum_feasible_consumption
+from .bellman import BellmanConfig, BellmanSolution, _exprel, maximum_feasible_consumption
 from .boundary import _FLOOR_CONTACT_ULPS, endpoint_floor_contact
 from .population import CohortMoments, cohort_moments, simulate_cohort
 
@@ -357,7 +357,7 @@ def simulate_population(
         "minimum_consumption_capacity_slack": cohort.minimum_consumption_capacity_slack,
         "numerical_asset_floor": floor,
         "economic_asset_floor": float(solution.params.asset_floor),
-        "asset_floor_contact": "exact initial floor; shared endpoint cancellation-roundoff classifier",
+        "asset_floor_contact": "exact initial floor; shared endpoint roundoff classifier",
         "asset_floor_contact_roundoff_multiplier": _FLOOR_CONTACT_ULPS,
         "nodes": cohort.weights.size,
     }

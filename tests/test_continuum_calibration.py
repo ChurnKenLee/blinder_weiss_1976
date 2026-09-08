@@ -232,3 +232,26 @@ def test_initial_near_floor_mass_remains_interior():
     contacts = np.asarray(_cached_floor_contacts(config)(params, states, controls))
     assert not contacts[0, 0]
     assert not contacts[1, 0]
+
+
+def test_failure_diagnostics_can_be_saved_as_strict_json():
+    import json
+
+    from tools.benchmark_continuum import jsonable
+
+    failed = {
+        "completed": False,
+        "error": "nonfinite policy caused an invalid destination",
+        "diagnostics": {
+            "array": np.array([0.0, np.nan, np.inf, -np.inf]),
+            "scalar": np.float64(np.nan),
+            "nested": (float("inf"),),
+        },
+    }
+    encoded = json.dumps(jsonable(failed), allow_nan=False)
+    decoded = json.loads(encoded)
+    assert decoded["completed"] is False
+    assert decoded["error"] == failed["error"]
+    assert decoded["diagnostics"]["array"] == [0.0, None, None, None]
+    assert decoded["diagnostics"]["scalar"] is None
+    assert decoded["diagnostics"]["nested"] == [None]

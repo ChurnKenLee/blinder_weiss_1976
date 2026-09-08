@@ -77,13 +77,15 @@ class CompilationTimer:
 
 def jsonable(value):
     if isinstance(value, np.ndarray):
-        return value.tolist()
+        return jsonable(value.tolist())
     if isinstance(value, np.generic):
-        return value.item()
+        return jsonable(value.item())
     if isinstance(value, dict):
         return {key: jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
         return [jsonable(item) for item in value]
+    if isinstance(value, float) and not np.isfinite(value):
+        return None
     return value
 
 
