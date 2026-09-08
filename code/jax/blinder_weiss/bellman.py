@@ -86,6 +86,8 @@ class BellmanConfig:
     consumption_floor: float = 1e-8
     leisure_floor: float = 1e-5
     path_checkpoints: int = 4
+    # Checkpoints remain available only to replay historical approximations.
+    asset_feasibility: Literal["continuous", "checkpoints"] = "continuous"
     refinement_steps: int = 24
     refinement_learning_rate: float = 0.01
     refinement_backtracking_steps: int = 6
@@ -247,6 +249,8 @@ def _validate_config(params: ModelParams, config: BellmanConfig) -> None:
         raise ValueError("leisure_floor must lie in (0, 1)")
     if config.path_checkpoints < 1:
         raise ValueError("path_checkpoints must be positive")
+    if config.asset_feasibility not in {"continuous", "checkpoints"}:
+        raise ValueError("asset_feasibility must be continuous or checkpoints")
     if config.refinement_steps < 0:
         raise ValueError("refinement_steps cannot be negative")
     if config.refinement_learning_rate <= 0.0:
@@ -390,7 +394,7 @@ def constant_control_transition(
     return jnp.stack((next_assets, next_log_human_capital), axis=-1)
 
 
-def maximum_feasible_consumption(
+def _checkpoint_consumption_capacity(
     assets: Array,
     log_human_capital: Array,
     hours: Array,
@@ -415,6 +419,154 @@ def maximum_feasible_consumption(
     )
     checkpoint_bounds = (assets_without_consumption - asset_minimum) / consumption_factor
     return jnp.min(checkpoint_bounds, axis=-1)
+
+
+def endpoint_consumption_capacity(
+    assets: Array,
+    log_human_capital: Array,
+    hours: Array,
+    training_time: Array,
+    params: ModelParams,
+    step: ArrayLike,
+    asset_minimum: ArrayLike,
+) -> Array:
+    """Constant consumption that reaches the asset floor at the endpoint only.
+
+    This is not a full-period feasibility certificate. The discounted-budget
+    form avoids subtracting nearly equal asset levels at a floor-only state.
+    """
+    duration = jnp.asarray(step)
+    growth = params.human_capital_productivity * training_time - params.human_capital_depreciation
+    earnings = effective_earnings_share(hours, training_time) * jnp.exp(log_human_capital)
+    discount_average = _exprel(-params.interest_rate * duration)
+    return (
+        params.interest_rate * asset_minimum
+        + (assets - asset_minimum) / (duration * discount_average)
+        + earnings * _exprel((growth - params.interest_rate) * duration) / discount_average
+    )
+
+
+def minimum_assets_during_step(
+    state: Array,
+    control: Array,
+    params: ModelParams,
+    step: ArrayLike,
+) -> Array:
+    """Analytic minimum assets over the complete constant-control interval.
+
+    With initial earnings w, capital growth g and D0=r*A+w-c, the sign of
+    A'(t) is the sign of D0+w*g*t*exprel((g-r)*t). That expression is monotone
+    in t, so only the endpoints and at most one interior minimum are needed.
+    The log1p formula below remains continuous when g approaches r, including
+    zero interest. Zero earnings or nonpositive growth require endpoints only.
+    """
+    assets, log_k = state[..., 0], state[..., 1]
+    consumption, hours, training = control[..., 0], control[..., 1], control[..., 2]
+    growth = params.human_capital_productivity * training - params.human_capital_depreciation
+    earnings = effective_earnings_share(hours, training) * jnp.exp(log_k)
+    growth_income = earnings * growth
+    initial_drift = params.interest_rate * assets + earnings - consumption
+    rate_difference = growth - params.interest_rate
+    duration = jnp.asarray(step)
+    final_sign = initial_drift + growth_income * duration * _exprel(rate_difference * duration)
+    interior = (growth_income > 0) & (initial_drift < 0) & (final_sign > 0)
+    safe_income = jnp.where(interior, growth_income, 1.0)
+    linear_time = -jnp.where(interior, initial_drift, 0.0) / safe_income
+    z = rate_difference * linear_time
+    # A valid crossing has z > -1; guard the last rounding bit at that limit.
+    z = jnp.maximum(z, jnp.nextafter(jnp.asarray(-1.0), jnp.asarray(0.0)))
+    safe_z = jnp.where(jnp.abs(z) > 1e-5, z, 1.0)
+    log1p_relative = jnp.where(
+        jnp.abs(z) > 1e-5,
+        jnp.log1p(z) / safe_z,
+        1.0 - z / 2.0 + z**2 / 3.0 - z**3 / 4.0 + z**4 / 5.0,
+    )
+    stationary_time = jax.lax.stop_gradient(jnp.clip(linear_time * log1p_relative, 0.0, duration))
+    endpoint = constant_control_transition(state, control, params, duration)[..., 0]
+    stationary = constant_control_transition(state, control, params, stationary_time)[..., 0]
+    return jnp.minimum(jnp.minimum(assets, endpoint), jnp.where(interior, stationary, jnp.inf))
+
+
+def maximum_feasible_consumption(
+    assets: Array,
+    log_human_capital: Array,
+    hours: Array,
+    training_time: Array,
+    params: ModelParams,
+    step: ArrayLike,
+    asset_minimum: ArrayLike,
+    checkpoints: int,
+    *,
+    method: Literal["continuous", "checkpoints"] = "continuous",
+) -> Array:
+    """Largest constant consumption feasible throughout the entire interval.
+
+    Continuous feasibility is the default. ``method="checkpoints"`` retains
+    the historical finite-checkpoint approximation exactly for comparisons.
+    ``checkpoints`` has no effect in continuous mode. Inputs are assumed to
+    start at or above the supplied numerical floor (up to boundary roundoff).
+
+    With growing earnings, an interior binding time solves a scalar monotone
+    discounted-budget equation. A fixed 32-step bisection brackets it; the
+    consumption bound is then evaluated at that time. The minimizing time is
+    stopped for autodiff: the envelope theorem supplies the correct capacity
+    derivative, unlike differentiating the discrete bisection decisions.
+    """
+    if method == "checkpoints":
+        return _checkpoint_consumption_capacity(
+            assets, log_human_capital, hours, training_time, params, step,
+            asset_minimum, checkpoints,
+        )
+    if method != "continuous":
+        raise ValueError("method must be continuous or checkpoints")
+    duration = jnp.asarray(step)
+    growth = params.human_capital_productivity * training_time - params.human_capital_depreciation
+    earnings = effective_earnings_share(hours, training_time) * jnp.exp(log_human_capital)
+    buffer = assets - asset_minimum
+    endpoint = endpoint_consumption_capacity(
+        assets, log_human_capital, hours, training_time, params, duration, asset_minimum
+    )
+    growing = (growth > 0) & (earnings > 0)
+    initial_binding = growing & (buffer <= 0)
+    endpoint_drift = params.interest_rate * asset_minimum + earnings * jnp.exp(growth * duration)
+    interior_binding = growing & (buffer > 0) & (endpoint_drift > endpoint)
+
+    def binding_time(_):
+        # Nothing through the bisection participates in gradients. The
+        # discounted-budget value evaluated below has its envelope derivative.
+        active, g, w, surplus, r, total = jax.lax.stop_gradient((
+            interior_binding, growth, earnings, buffer, params.interest_rate, duration,
+        ))
+        g = jnp.where(active, g, 0.0)
+        w = jnp.where(active, w, 1.0)
+        surplus = jnp.where(active, surplus, 0.0)
+        left = jnp.zeros_like(endpoint)
+        right = jnp.full_like(endpoint, total)
+
+        def bisect(_, bracket):
+            lower, upper = bracket
+            midpoint = (lower + upper) / 2.0
+            # w * integral_0^t exp(-r*s)*(exp(g*t)-exp(g*s)) ds
+            needed_buffer = w * midpoint * (
+                jnp.exp(g * midpoint) * _exprel(-r * midpoint)
+                - _exprel((g - r) * midpoint)
+            )
+            below = needed_buffer < surplus
+            return jnp.where(below, midpoint, lower), jnp.where(below, upper, midpoint)
+
+        left, right = jax.lax.fori_loop(0, 32, bisect, (left, right))
+        return jnp.where(active, (left + right) / 2.0, total)
+
+    critical_time = jax.lax.stop_gradient(jax.lax.cond(
+        jnp.any(interior_binding), binding_time,
+        lambda _: jnp.full_like(endpoint, duration), operand=None,
+    ))
+    interior_capacity = endpoint_consumption_capacity(
+        assets, log_human_capital, hours, training_time, params, critical_time, asset_minimum
+    )
+    initial_capacity = params.interest_rate * asset_minimum + earnings
+    return jnp.where(initial_binding, initial_capacity, interior_capacity)
+
 
 
 def _regular_grid_index(grid: Array, points: Array, curvature: float) -> Array:
@@ -657,6 +809,7 @@ def _make_control_optimizer(
             step,
             asset_minimum,
             config.path_checkpoints,
+            method=config.asset_feasibility,
         )
         consumption_span = jnp.maximum(consumption_capacity - config.consumption_floor, 0.0)
         consumption = config.consumption_floor + consumption_fraction * consumption_span
@@ -700,6 +853,7 @@ def _make_control_optimizer(
             step,
             asset_minimum,
             config.path_checkpoints,
+            method=config.asset_feasibility,
         )
         consumption_span = jnp.maximum(
             consumption_capacity - config.consumption_floor,
@@ -775,6 +929,7 @@ def _make_control_optimizer(
             step,
             asset_minimum,
             config.path_checkpoints,
+            method=config.asset_feasibility,
         )
         consumption_span = jnp.maximum(consumption_capacity - config.consumption_floor, 0.0)
         consumption = config.consumption_floor + consumption_fraction * consumption_span
@@ -907,6 +1062,7 @@ def _make_control_optimizer(
             step,
             asset_minimum,
             config.path_checkpoints,
+            method=config.asset_feasibility,
         )
         consumption_span = jnp.maximum(consumption_capacity - config.consumption_floor, 0.0)
         safe_span = jnp.where(consumption_span > 0.0, consumption_span, 1.0)
@@ -1857,6 +2013,7 @@ def simulate_policy(
                     step,
                     config.asset_minimum,
                     config.path_checkpoints,
+                    method=config.asset_feasibility,
                 )
             )
             stayed_in_domain = stayed_in_domain and (
@@ -1994,6 +2151,7 @@ def diagnose_bellman(
             step,
             config.asset_minimum,
             config.path_checkpoints,
+            method=config.asset_feasibility,
         )
         minimum_capacity_slack = min(
             minimum_capacity_slack,
