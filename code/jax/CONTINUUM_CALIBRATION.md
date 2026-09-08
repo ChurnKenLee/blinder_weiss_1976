@@ -105,3 +105,55 @@ remaps small positive asset destinations upward to preserve their distinction
 from floor atoms. These errors must be judged against empirical uncertainty and
 the loss changes the calibration optimizer needs to resolve. The full design
 and acceptance criteria remain in [CONTINUUM_FORWARD_MEMO.md](../../CONTINUUM_FORWARD_MEMO.md).
+
+## Reproduce the comparison
+
+The benchmark re-solves the supplied numerical configuration and uses the same
+initial law for the IID cohort, every quadrature order, and every transport
+grid. It records JAX compilation events separately from synchronized first and
+repeated calls; event durations can overlap and are not subtracted from wall
+time. Complete parameter evaluations include the policy solve, policy recovery,
+mass propagation, moment reduction, and loss.
+
+```bash
+PYTHONPATH=code/jax python tools/benchmark_continuum.py \
+  --platform gpu \
+  --config-report output/solver_benchmarks/bicubic_asset121_fine/report.json \
+  --quadrature 8 16 32 64 --distribution 31 61 121 \
+  --fit-evaluations 30 --output output/solver_benchmarks/continuum_gpu
+```
+
+A small CPU smoke run uses `--platform cpu` and omits `--config-report`. Saved
+`report.json` contains settings, source checksums, diagnostic profiles, errors,
+timings, structural perturbations, and the scalar fitting trace. `profiles.npz`
+contains moments, terminal CDFs, and selected distribution snapshots. Outputs
+are written by atomic rename and covered by project GitHub autosave.
+
+The synthetic loss matches consumption, hours, training, earnings and
+participation at seven ages. Its scales (0.02 for time fractions/participation,
+0.1 for consumption/earnings) are chosen numerical tolerances, not estimated
+survey standard errors. The fit varies leisure weight on `[0.9,1.1]`, with known
+synthetic value 1.0 and parameter tolerance 0.001. This exercise tests recovery
+within the same numerical model. Identification, empirical mapping and
+numerical bias under joint refinement remain separate questions.
+
+For custom targets, the minimal sequence is:
+
+```python
+from blinder_weiss import (
+    initial_quadrature, simulate_population, weighted_age_moment_loss,
+    evaluate_calibration, fit_scalar_calibration,
+)
+
+nodes = initial_quadrature(nodes_per_dimension=64,
+                           asset_floor=solution.config.asset_minimum)
+population = simulate_population(solution, nodes, backend="quadrature",
+                                 participation_hours_threshold=0.02)
+# targets is a CalibrationTargets object with explicit units/scales/ages/source.
+loss = weighted_age_moment_loss(population, targets)
+evaluation = evaluate_calibration(solution.params, solution.config, nodes, targets)
+fit = fit_scalar_calibration(
+    "leisure_weight", (0.9, 1.1), params=solution.params,
+    config=solution.config, initial_nodes=nodes, targets=targets,
+)
+```
