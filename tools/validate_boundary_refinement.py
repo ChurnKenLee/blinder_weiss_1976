@@ -196,7 +196,9 @@ def _hash(path):
 
 def _write_json(path, data):
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(json.dumps(data, indent=2, allow_nan=False, default=lambda value: value.item()) + "\n")
+    temporary.write_text(
+        json.dumps(data, indent=2, allow_nan=False, default=lambda value: value.item()) + "\n"
+    )
     temporary.replace(path)
 
 
