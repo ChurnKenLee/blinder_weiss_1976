@@ -26,6 +26,7 @@ from blinder_weiss.calibration import (
     weighted_age_moment_loss,
 )
 from blinder_weiss.continuum import (
+    InitialAtom,
     PopulationResult,
     PopulationStateMoments,
     SyntheticInitialDistribution,
@@ -139,7 +140,9 @@ def path_audit(time, states, controls, params, floor, weights, tolerance):
         "worst_control": controls[worst].tolist(),
         "worst_initial_state_A_logK": states[:-1][worst].tolist(),
         "feasibility_tolerance": tolerance,
-        "interval_fraction_note": "fraction of interval duration flagged; not time spent below floor",
+        "interval_fraction_note": (
+            "fraction of interval duration flagged; not time spent below floor"
+        ),
     }
     return result, minimum, when
 
@@ -292,14 +295,16 @@ def main():
     if common_periods < 1:
         parser.error("common-periods must be positive")
     args.output.mkdir(parents=True, exist_ok=True)
-    law = SyntheticInitialDistribution()
+    law = SyntheticInitialDistribution(asset_floor_mass=0.05, atoms=(InitialAtom(5.0, 1.0, 0.05),))
     nodes = initial_quadrature(
         law, nodes_per_dimension=args.quadrature, asset_floor=baseline.config.asset_minimum
     )
     state_time = np.linspace(0.0, baseline.params.horizon, common_periods + 1)
     moment_time = (state_time[:-1] + state_time[1:]) / 2
     report: dict[str, Any] = {
-        "purpose": "boundary-feasibility correction and separate fixed-domain time-policy refinement",
+        "purpose": (
+            "boundary-feasibility correction and separate fixed-domain time-policy refinement"
+        ),
         "convergence_claimed": False,
         "baseline_source": {
             "folder": str(args.baseline),
@@ -316,7 +321,10 @@ def main():
         "quadrature_order": args.quadrature,
         "common_state_time": state_time.tolist(),
         "common_moment_time": moment_time.tolist(),
-        "alignment": "analytic fixed-control states at common boundaries; step controls and exact K at common midpoints",
+        "alignment": (
+            "analytic fixed-control states at common boundaries; "
+            "step controls and exact K at common midpoints"
+        ),
         "runs": [],
         "comparisons": [],
     }
