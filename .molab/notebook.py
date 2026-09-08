@@ -78,6 +78,57 @@ def _(mo):
     return
 
 
+@app.cell
+def empirical_profile_controls(mo):
+    survey_group = mo.ui.dropdown(options=["all", "men", "women"], value="all", label="Survey population")
+    survey_group
+    return (survey_group,)
+
+
+@app.cell
+def empirical_profile_view(
+    Path,
+    github_sync_refresh,
+    json,
+    mo,
+    np,
+    plt,
+    survey_group,
+):
+    github_sync_refresh
+    empirical_profiles = json.loads(Path("/marimo/blinder_weiss_1976/output/calibration/empirical_age_profiles_2024.json").read_text())
+    _acs = [_row for _row in empirical_profiles["acs"]["profiles"] if _row["sex"] == survey_group.value]
+    _atus = [_row for _row in empirical_profiles["atus"]["profiles"] if _row["sex"] == survey_group.value]
+    _labels = [_row["age_band"] for _row in _acs]
+    _x = np.arange(len(_labels))
+    _survey_fig, _survey_axes = plt.subplots(1, 3, figsize=(13, 3.7), constrained_layout=True)
+    _survey_axes[0].plot(_x, [_row["employment_rate"] for _row in _acs], "o-", label="ACS reference week")
+    _survey_axes[0].plot(_x, [_row["employment_rate"] for _row in _atus], "o-", label="ATUS employment status")
+    _survey_axes[0].set(title="Employment rate", ylabel="Population fraction", ylim=(0, 1))
+    _survey_axes[0].legend(fontsize=8)
+    _survey_axes[1].plot(_x, [_row["usual_weekly_hours_among_reporters"] for _row in _acs], "o-")
+    _survey_axes[1].set(title="ACS usual weekly hours", ylabel="Hours, among valid reporters")
+    _survey_axes[2].plot(_x, [_row["working_minutes_per_day"] for _row in _atus], "o-", label="Working (0501xx)")
+    _survey_axes[2].plot(_x, [_row["education_minutes_per_day"] for _row in _atus], "o-", label="Education (06xxxx)")
+    _survey_axes[2].set(title="ATUS unconditional diary time", ylabel="Minutes per day")
+    _survey_axes[2].legend(fontsize=8)
+    for _axis in _survey_axes:
+        _axis.set_xticks(_x, _labels, rotation=45)
+        _axis.set_xlabel("Calendar-age band")
+        _axis.grid(alpha=0.2)
+    plt.close(_survey_fig)
+    mo.vstack([
+        mo.md("**Empirical measurement preparation — 2024.** These weighted descriptive profiles retain survey units. "
+              "ACS excludes institutional group quarters; ATUS applies each diary weight once. "
+              "Employment includes employed people with no work on the diary day. ACS hours are conditional on a "
+              "valid usual-hours report, while diary means include zero time. The 80–84 band respects ATUS age grouping. "
+              "Model time units, survey uncertainty, and the mapping from education to training remain to be specified; "
+              "these profiles have not been used as calibration targets."),
+        _survey_fig,
+    ])
+    return
+
+
 @app.cell(hide_code=True)
 def _():
     import json
