@@ -18,7 +18,7 @@ import json
 from dataclasses import asdict
 from pathlib import Path
 from time import perf_counter
-from typing import Any
+from typing import Any, Literal
 
 import jax
 import numpy as np
@@ -54,7 +54,8 @@ class CompilationTimer:
         self.events: dict[str, float] = {}
         jax.monitoring.register_event_duration_secs_listener(self.record)
 
-    def record(self, name, duration, **_metadata):
+    def record(self, event: str, duration_secs: float, **_metadata: str | int):
+        name, duration = event, duration_secs
         if name.startswith("/jax/core/compile/"):
             self.events[name.rsplit("/", 1)[-1]] = (
                 self.events.get(name.rsplit("/", 1)[-1], 0.0) + duration
@@ -152,7 +153,7 @@ def main():
         temporary.replace(args.output / "report.json")
         temporary = args.output / "profiles.npz.tmp"
         with temporary.open("wb") as handle:
-            np.savez_compressed(handle, **arrays)
+            np.savez_compressed(handle, allow_pickle=False, **arrays)
         temporary.replace(args.output / "profiles.npz")
 
     timer = CompilationTimer()
@@ -168,7 +169,9 @@ def main():
     )
     results = {}
     configurations = {}
-    specifications = [("cohort", args.people)]
+    specifications: list[tuple[Literal["cohort", "quadrature", "transport"], int]] = [
+        ("cohort", args.people)
+    ]
     specifications += [("quadrature", n) for n in sorted(set(args.quadrature))]
     specifications += [("transport", n) for n in sorted(set(args.distribution))]
     reference_nodes = initial_quadrature(
@@ -230,6 +233,7 @@ def main():
         for field in ("assets", "human_capital", "log_human_capital", "asset_floor_mass"):
             arrays[f"{label}_{field}"] = getattr(result.state_moments, field)
         if backend == "transport":
+            assert grid is not None
             weights = result.simulation.terminal_mass.ravel()
             state = grid.states
             indices = np.unique(np.linspace(0, config.periods, 7, dtype=int))

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -15,12 +14,14 @@ from blinder_weiss.calibration import (
 from blinder_weiss.continuum import (
     InitialAtom,
     PopulationResult,
+    PopulationStateMoments,
     SyntheticInitialDistribution,
     initial_quadrature,
     sample_initial_population,
     simulate_population,
 )
 from blinder_weiss.model import benchmark_params
+from blinder_weiss.population import CohortMoments
 
 
 def test_quadrature_exact_continuous_joint_moments_and_atoms():
@@ -107,12 +108,22 @@ def test_iid_sampler_matches_the_same_initial_measure():
 def fake_population():
     return PopulationResult(
         "quadrature",
-        SimpleNamespace(
+        CohortMoments(
             time=np.array([0.0, 1.0, 2.0]),
             hours=np.array([0.2, 0.4, 0.6]),
+            participation=np.ones(3),
+            training_time=np.zeros(3),
+            consumption=np.ones(3),
+            earnings=np.ones(3),
             participation_hours_threshold=0.02,
         ),
-        SimpleNamespace(time=np.array([0.0, 1.0, 2.0, 3.0]), assets=np.array([5.0, 6.0, 7.0, 8.0])),
+        PopulationStateMoments(
+            time=np.array([0.0, 1.0, 2.0, 3.0]),
+            assets=np.array([5.0, 6.0, 7.0, 8.0]),
+            human_capital=np.ones(4),
+            log_human_capital=np.zeros(4),
+            asset_floor_mass=np.zeros(4),
+        ),
         {},
         None,
     )
