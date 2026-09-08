@@ -721,6 +721,7 @@ def calibration_stability_view(
     github_sync_refresh,
     json,
     mo,
+    plt,
 ):
     github_sync_refresh
     _stability_path = benchmark_directory / "calibration_stability_gpu" / "report.json"
@@ -752,12 +753,29 @@ def calibration_stability_view(
     _initial_note = (f"Initial-floor-share fit: {_initial_fit['fitted_value']:.6f}; "
                      f"known synthetic share {_initial_fit['known_value']:.6f}."
                      if _initial_fit else "Initial-distribution fitting follows the structural comparisons.")
+    _trace_figure, _trace_axis = plt.subplots(figsize=(8, 3.5), constrained_layout=True)
+    for _name, _run in calibration_stability_report.get("resolutions", {}).items():
+        _trace = sorted(_run.get("fit_trace", []), key=lambda _item: _item["parameter"])
+        if _trace:
+            _trace_axis.plot([_item["parameter"] for _item in _trace],
+                             [_item["loss"] for _item in _trace], "o-", ms=3, label=_name)
+    _trace_axis.axvline(calibration_stability_report["known_parameter"], color="black", ls=":",
+                       label="Known synthetic parameter")
+    _trace_axis.set(xlabel="Leisure weight", ylabel="Scaled moment loss",
+                    title="Evaluated calibration objectives", yscale="symlog")
+    _trace_axis.set_yscale("symlog", linthresh=1e-5)
+    _trace_axis.grid(alpha=0.2)
+    _trace_axis.legend(fontsize=8)
+    plt.close(_trace_figure)
     mo.vstack([
         mo.md("**Calibration stability under refinement.** Every resolution uses one fixed synthetic target from "
-              "the finest time/state grid and quadrature rule. The supplied parameter is retained if it beats the "
+              "the finest time/state grid and quadrature rule. The initial law has 5% at the floor and a continuous "
+              "interior, with no interior point atom. Targets include the fixed 0.01-asset near-floor band. "
+              "The supplied parameter is retained if it beats the "
               "bounded search; its selection is reported explicitly. Acceptance checks compare moments, loss, fitted "
               "parameters, and full-period feasibility. The tolerances are numerical choices and are not survey standard errors."),
         mo.ui.table(_calibration_rows, selection=None),
+        _trace_figure,
         mo.ui.table(_acceptance_rows, selection=None) if _acceptance_rows else mo.md("Resolution acceptance checks follow the completed fits."),
         mo.md(_initial_note),
     ])
