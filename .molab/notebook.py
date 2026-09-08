@@ -654,6 +654,42 @@ def floor_spike_attribution(
 
 
 @app.cell(hide_code=True)
+def boundary_measurement_view(benchmark_directory, json, mo):
+    _measurement_path = benchmark_directory / "boundary_measurement_sensitivity" / "results.json"
+    mo.stop(not _measurement_path.exists(), mo.md("The saved floor-definition comparison is unavailable."))
+    _measurement_report = json.loads(_measurement_path.read_text())
+    _refinement_names = {
+        "feasibility_method": "Full-period constraint, 140/121",
+        "time": "140 → 280 periods, 121 assets",
+        "asset_grid": "121 → 241 assets, 280 periods",
+        "time_and_asset_grid": "140/121 → 280/241 combined",
+    }
+    _measurement_rows = []
+    for _law, _law_label in (("stress_q32", "5% interior point atom"),
+                             ("reweighted_no_interior_atom_q32", "No interior point atom")):
+        for _refinement, _label in _refinement_names.items():
+            _row = {"Initial law": _law_label, "Comparison": _label}
+            for _entry in _measurement_report["comparisons"]:
+                if (_entry["law"] == _law and _entry["refinement"] == _refinement
+                        and _entry["alignment"] == "pairwise_native"):
+                    _column = "Exact floor" if _entry["width"] == 0 else f"Band {_entry['width']:g}"
+                    _row[_column] = f"{100 * _entry['maximum_absolute_mass_change']:.3f} pp"
+            _measurement_rows.append(_row)
+    mo.accordion({
+        "Saved sensitivity to the floor definition and initial atom": mo.vstack([
+            mo.md("These are maximum probability changes across numerical refinements, using order-32 "
+                  "quadrature and every shared native time point. The second law redistributes the interior point "
+                  "atom into the continuous population while retaining 5% initial floor mass. No individual path is smoothed. "
+                  "A fixed asset band defines a different event: its probability peaks around 64–66% here, much larger "
+                  "than exact floor contact. Bands reduce several individual refinement discrepancies, but the combined "
+                  "comparison is nonmonotonic. This is separate from the order-64 calibration experiment."),
+            mo.ui.table(_measurement_rows, selection=None),
+        ])
+    })
+    return
+
+
+@app.cell(hide_code=True)
 def continuum_benchmark_table(
     benchmark_directory,
     github_sync_refresh,
