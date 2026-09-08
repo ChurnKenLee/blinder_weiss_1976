@@ -39,7 +39,9 @@ def test_analytic_minima_match_independent_adaptive_ode_and_scalar_search(rate, 
         income = h * (1 - slope * q / h - slope**2 * (q / h) ** 2) * np.exp(log_k)
         growth = params.human_capital_productivity * q - params.human_capital_depreciation
         solution = solve_ivp(
-            lambda t, a: rate * a + income * np.exp(growth * t) - c,
+            lambda t, a, income=income, growth=growth, c=c: (
+                rate * a + income * np.exp(growth * t) - c
+            ),
             (0, 0.7),
             [a0],
             rtol=2e-12,
@@ -48,7 +50,7 @@ def test_analytic_minima_match_independent_adaptive_ode_and_scalar_search(rate, 
         )
         assert solution.success
         optimized = minimize_scalar(
-            lambda t: float(solution.sol(t)[0]),
+            lambda t, solution=solution: float(solution.sol(t)[0]),
             bounds=(0, 0.7),
             method="bounded",
             options={"xatol": 1e-13},
