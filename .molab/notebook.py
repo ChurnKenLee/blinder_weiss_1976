@@ -489,6 +489,37 @@ def continuum_benchmark_table(
               "an optional approximation pending moment convergence."),
         mo.ui.table(_rows, selection=None) if _rows else mo.md("The GPU comparison is being prepared."),
     ])
+    return (continuum_benchmark_report,)
+
+
+@app.cell(hide_code=True)
+def synthetic_calibration_view(continuum_benchmark_report, mo, plt):
+    _fit = (
+        continuum_benchmark_report.get("synthetic_fit")
+        if continuum_benchmark_report is not None else None
+    )
+    if _fit is None:
+        _calibration_display = mo.md("The synthetic fitting experiment will appear after the benchmark completes.")
+    else:
+        _fit_figure, _fit_axis = plt.subplots(figsize=(7, 3.5), constrained_layout=True)
+        _evaluations = sorted(_fit["evaluations"], key=lambda _item: _item["leisure_weight"])
+        _fit_axis.plot([_item["leisure_weight"] for _item in _evaluations],
+                       [_item["loss"] for _item in _evaluations], "o-")
+        _fit_axis.axvline(_fit["known_leisure_weight"], color="black", ls=":", label="Known synthetic value")
+        _fit_axis.set(xlabel="Leisure weight", ylabel="Scaled moment loss", title="Synthetic parameter recovery")
+        _fit_axis.grid(alpha=0.2)
+        _fit_axis.legend()
+        plt.close(_fit_figure)
+        _calibration_display = mo.vstack([
+            mo.md(f"**Synthetic calibration pilot:** known leisure weight {_fit['known_leisure_weight']:.6f}; "
+                  f"fitted {_fit['fitted_leisure_weight']:.6f}; "
+                  f"absolute error {_fit['absolute_parameter_error']:.2e}. "
+                  f"Optimizer success: {_fit['optimizer_success']}. "
+                  "Targets come from the same model with refined quadrature. This checks the fitting pipeline; "
+                  "it does not estimate survey parameters or establish identification."),
+            _fit_figure,
+        ])
+    _calibration_display
     return
 
 
