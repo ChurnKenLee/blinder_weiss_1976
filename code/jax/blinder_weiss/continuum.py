@@ -63,6 +63,8 @@ class PopulationNodes:
     weights: np.ndarray
     component: np.ndarray
     description: str
+    initial_law: SyntheticInitialDistribution | None = None
+    quadrature_order: int | None = None
 
 
 @dataclass(frozen=True)
@@ -207,6 +209,7 @@ def initial_quadrature(
         weights,
         component,
         "synthetic bounded correlated initial law; Gauss-Legendre probability quadrature",
+        law, nodes_per_dimension,
     )
 
 
@@ -260,6 +263,7 @@ def sample_initial_population(
         np.full(people, 1.0 / people),
         component,
         f"IID cohort from synthetic bounded correlated initial law; seed={seed}",
+        law, None,
     )
 
 
@@ -359,6 +363,10 @@ def simulate_population(
             if is_dataclass(simulation.diagnostics)
             else dict(simulation.diagnostics)
         )
+        diagnostics["initial_law"] = (
+            asdict(initial_nodes.initial_law) if initial_nodes.initial_law is not None else None
+        )
+        diagnostics["quadrature_order"] = initial_nodes.quadrature_order
         initial_weights = initial_nodes.weights
         diagnostics["initial_lower_interior_remap_mass"] = float(
             initial_weights @ initial_stencil.lower_interior_remap
@@ -393,6 +401,10 @@ def simulate_population(
         "maximum_mass_drift": float(abs(cohort.weights.sum() - 1.0)),
         "minimum_mass": float(cohort.weights.min()),
         "minimum_consumption_capacity_slack": cohort.minimum_consumption_capacity_slack,
+        "minimum_assets_during_period": cohort.minimum_assets_during_period,
+        "maximum_full_period_floor_violation": max(0.0, floor - cohort.minimum_assets_during_period),
+        "initial_law": asdict(initial_nodes.initial_law) if initial_nodes.initial_law is not None else None,
+        "quadrature_order": initial_nodes.quadrature_order,
         "numerical_asset_floor": floor,
         "economic_asset_floor": float(solution.params.asset_floor),
         "asset_floor_contact": "exact initial floor; shared endpoint roundoff classifier",
