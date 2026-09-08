@@ -10,12 +10,12 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib.util
 import json
 from dataclasses import asdict
 from pathlib import Path
 
 import numpy as np
-from benchmark_continuum import CompilationTimer, jsonable
 from blinder_weiss.calibration import (
     AgeMomentTarget,
     CalibrationTargets,
@@ -28,7 +28,18 @@ from blinder_weiss.continuum import (
     simulate_population,
 )
 from blinder_weiss.distribution import DistributionDomainError, DistributionGrid
-from validate_calibration_grid import load_solution
+
+
+def _load_tool(name):
+    spec = importlib.util.spec_from_file_location(name, Path(__file__).with_name(name + ".py"))
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+benchmark_tool = _load_tool("benchmark_continuum")
+validation_tool = _load_tool("validate_calibration_grid")
 
 
 def main():
@@ -45,7 +56,7 @@ def main():
     baseline = json.loads((args.baseline / "report.json").read_text())
     with np.load(args.baseline / "profiles.npz") as saved:
         reference = {name: saved[name] for name in saved.files}
-    solution, _ = load_solution(args.solution, args.platform)
+    solution, _ = validation_tool.load_solution(args.solution, args.platform)
     if (
         asdict(solution.config) != baseline["config"]
         or solution.params._asdict() != baseline["params"]
@@ -114,10 +125,12 @@ def main():
 
     def save_report():
         temporary = args.output / "report.json.tmp"
-        temporary.write_text(json.dumps(jsonable(report), indent=2, allow_nan=False) + "\n")
+        temporary.write_text(
+            json.dumps(benchmark_tool.jsonable(report), indent=2, allow_nan=False) + "\n"
+        )
         temporary.replace(args.output / "report.json")
 
-    timer = CompilationTimer()
+    timer = benchmark_tool.CompilationTimer()
 
     def population_call():
         return simulate_population(
@@ -177,7 +190,7 @@ def main():
     save_report()
     print(
         json.dumps(
-            jsonable(
+            benchmark_tool.jsonable(
                 {
                     key: report[key]
                     for key in (
