@@ -745,6 +745,8 @@ def calibration_stability_view(
         _acceptance_rows.append({
             "Comparison with finest reference": _name,
             "Within all tolerances": _check["passed"],
+            "Unmet checks": ", ".join(_criterion.replace("_", " ")
+                                       for _criterion, _passed in _check["criteria"].items() if not _passed) or "None",
             "Largest moment change / target scale": _check["maximum_standardized_moment_difference"],
             "Loss change": _check["absolute_loss_difference"],
             "Fitted parameter change": _check["absolute_fitted_parameter_difference"],
@@ -778,6 +780,11 @@ def calibration_stability_view(
         _trace_figure,
         mo.ui.table(_acceptance_rows, selection=None) if _acceptance_rows else mo.md("Resolution acceptance checks follow the completed fits."),
         mo.md(_initial_note),
+        mo.md(f"Numerical tolerances: maximum moment change / residual scale "
+              f"{calibration_stability_report['thresholds']['maximum_standardized_moment_difference']:g}; "
+              f"loss change {calibration_stability_report['thresholds']['maximum_loss_difference']:g}; "
+              f"parameter change {calibration_stability_report['thresholds']['maximum_parameter_difference']:g}. "
+              "A passing comparison provides local stability evidence for the tested resolutions."),
     ])
     return
 
