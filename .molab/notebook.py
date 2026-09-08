@@ -85,7 +85,7 @@ def _():
     import numpy as np
     import matplotlib.pyplot as plt
     benchmark_directory = Path("/marimo/blinder_weiss_1976/output/solver_benchmarks")
-    return benchmark_directory, json, np, plt
+    return Path, benchmark_directory, json, np, plt
 
 
 @app.cell(hide_code=True)
@@ -217,6 +217,43 @@ def continuum_intro(mo):
     numerical floor have a separate mass component; nearby interior mass is tracked
     separately. Conservation and agreement under refinement are separate checks.
     """)
+    return
+
+
+@app.cell
+def population_imports(Path, json, np):
+    import sys
+
+    _project = Path("/marimo/blinder_weiss_1976")
+    if str(_project / "code/jax") not in sys.path:
+        sys.path.insert(0, str(_project / "code/jax"))
+
+    from blinder_weiss import (
+        BellmanConfig, BellmanSolution, ModelParams,
+        InitialAtom, SyntheticInitialDistribution, initial_quadrature,
+        simulate_population, AgeMomentTarget, CalibrationTargets,
+        MOMENT_UNITS, weighted_age_moment_loss,
+    )
+
+
+    def load_population_policy(folder):
+        """Read one completed policy checkpoint with its exact numerical settings."""
+        import jax
+        report = json.loads((folder / "report.json").read_text())
+        config = BellmanConfig(**report["config"])
+        device = jax.devices(config.compute_platform)[config.device_index]
+        with np.load(folder / "policies.npz") as arrays:
+            return BellmanSolution(
+                params=ModelParams(**report["params"]), config=config,
+                time=arrays["time"], asset_grid=arrays["A"],
+                log_human_capital_grid=arrays["y"], values=arrays["values"],
+                consumption_policy=arrays["c"], hours_policy=arrays["h"],
+                training_time_policy=arrays["q"], solve_seconds=0.0,
+                backend=device.platform,
+                device=f"{device.platform}:{device.id} ({device.device_kind})",
+            )
+
+
     return
 
 
