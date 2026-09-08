@@ -47,5 +47,5 @@ def endpoint_floor_contact(
         jnp.isfinite(next_assets) & jnp.isfinite(consumption) & jnp.isfinite(capacity)
         & (factor > 0)
         & (jnp.abs(next_assets - floor) <= error_budget)
-        & ((capacity - consumption) * factor <= error_budget)
+        & (jnp.abs((capacity - consumption) * factor) <= error_budget)
     )

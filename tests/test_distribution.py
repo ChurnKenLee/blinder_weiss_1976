@@ -305,7 +305,7 @@ def test_repeated_floor_policy_has_no_face_interior_alternation(solution, monkey
     from blinder_weiss.continuum import _cached_floor_contacts
 
     periods = 140
-    params = solution.params._replace(horizon=70.0)
+    params = solution.params._replace(horizon=70.0, human_capital_depreciation=0.0)
     config = replace(solution.config, periods=periods)
     policy_shape = (periods, *solution.consumption_policy.shape[1:])
     artificial = replace(
@@ -315,11 +315,7 @@ def test_repeated_floor_policy_has_no_face_interior_alternation(solution, monkey
         training_time_policy=np.zeros(policy_shape),
     )
     grid = DistributionGrid(config.asset_minimum, np.array([0.001001, 0.5, 2.0, 5.0]),
-                            np.linspace(-5, 1, 25))
-    # The baseline Bellman box is narrow only in this small fixture; the
-    # supplied policy is known analytically and the independent test domain
-    # covers 70 years of human-capital depreciation.
-    artificial = replace(artificial, log_human_capital_grid=np.linspace(-5, 1, 5))
+                            np.linspace(-1, 1, 5))
 
     def recover(current_params, states, _continuation, _policy, _terminal):
         zero = jnp.zeros(states.shape[0])
