@@ -202,7 +202,11 @@ def main():
         configurations[label] = (nodes, backend, grid)
         print(json.dumps({"phase": "population", "backend": label}), flush=True)
 
-        def population_call(nodes=nodes, backend=backend, grid=grid):
+        def population_call(
+            nodes=nodes,
+            backend: Literal["quadrature", "cohort", "transport"] = backend,
+            grid=grid,
+        ):
             return simulate_population(
                 solution,
                 nodes,
