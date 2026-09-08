@@ -466,6 +466,15 @@ def test_acceptance_requires_distinct_resolutions_same_law_and_stable_fit():
     )
     assert not failed["passed"]
     assert not failed["criteria"]["both_full_period_paths_feasible"]
+    shifted_floor = replace(
+        coarse,
+        simulation=SimpleNamespace(
+            solution=SimpleNamespace(config=replace(config, asset_minimum=2e-4))
+        ),
+    )
+    assert not compare_calibration_resolutions(
+        evaluation(shifted_floor), evaluation(reference), targets, **kwargs
+    )["criteria"]["same_explicit_initial_law"]
 
 
 def test_scalar_fit_keeps_incumbent_and_preserves_search_termination(monkeypatch):

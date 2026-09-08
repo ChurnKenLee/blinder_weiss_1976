@@ -8,7 +8,12 @@ An IID cohort from the same initial law remains a sampling-error comparison.
 
 The initial law and calibration pilot are **synthetic numerical exercises**.
 They do not estimate the 1976 paper's parameters or the downloaded ACS/ATUS
-microdata. The measurement choices still needed for empirical targets are in
+microdata. Reproducible descriptive ACS/ATUS age profiles are now saved in
+[empirical_age_profiles_2024.json](../../output/calibration/empirical_age_profiles_2024.json).
+They retain survey units and do not silently become model calibration targets.
+Time-endowment normalization, training coverage, money units, age aggregation,
+and survey variance remain unresolved measurement inputs; neither source
+identifies initial assets or latent human capital on its own. See
 [data/ipums/README.md](../../data/ipums/README.md).
 
 ## Initial measure
@@ -161,8 +166,12 @@ PYTHONPATH=code/jax JAX_PLATFORMS=cpu python tools/benchmark_calibration_stabili
   --output output/solver_benchmarks/calibration_stability_cpu
 ```
 
-The deliberately small CPU model fails the comparisons across its 4/8-period
-and 4/8/16-order resolutions. This is expected evidence that a coarse model
+The [small CPU pilot](../../output/solver_benchmarks/calibration_stability_cpu/report.json)
+fails the comparisons across its 4/8-period and 4/8/16-order resolutions.
+At 4 periods the fitted leisure weights range from 0.9074 to 0.9373; at 8 periods
+they range from 0.9361 to the retained initial value 1.0. Thus refinement changes
+the fitted parameter substantially even though every bounded search terminates.
+ This is expected evidence that a coarse model
 cannot be accepted merely because a same-resolution synthetic fit looks good.
 The pilot also exposed an optimizer limitation: the bounded search could return
 a positive loss despite the already supplied parameter having zero loss. The
@@ -171,6 +180,14 @@ a known parameter is not evidence of recovery. Initial floor-share sensitivity
 uses the same fixed policy and recovers its known synthetic share, which only
 checks that numerical path. Further time, state-grid, quadrature, floor, and
 domain refinement remain necessary before empirical calibration.
+
+For production comparisons, `--config-report` imports a numerical configuration
+and `--periods` varies its time grid. `--resolution-config-reports PATH PATH`
+instead accepts a separate configuration for each distinct period count, so
+joint time/state-grid refinement can be measured. Each effective configuration
+is recorded, and the initial floor mixture requires a common numerical floor.
+Both modes re-solve the current source; saved policy tables are not assumed to
+match that source. Use at least two quadrature orders at each resolution.
 
 ## Historical checkpoint GPU pilot (2026-09-08)
 
