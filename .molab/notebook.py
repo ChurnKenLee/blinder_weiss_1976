@@ -139,6 +139,7 @@ def _(
         ("Original", "original_default.npz", "--"),
         ("Optimized + consumption polish", "optimized_default/policies.npz", "-"),
         ("Cubic, wider domain", "bicubic_padded_fine/policies.npz", ":"),
+        ("Refined assets (121 nodes)", "bicubic_asset121_fine/policies.npz", "-"),
     ]:
         _file = benchmark_directory / _relative
         if not _file.exists():
@@ -254,7 +255,12 @@ def population_imports(Path, json, np):
             )
 
 
-    return
+    return (
+        SyntheticInitialDistribution,
+        initial_quadrature,
+        load_population_policy,
+        simulate_population,
+    )
 
 
 @app.cell
@@ -278,6 +284,61 @@ def population_controls(mo):
                                    label="Initial probability at numerical asset floor"),
     }).form(submit_button_label="Simulate population", show_clear_button=False)
     population_settings
+    return (population_settings,)
+
+
+@app.cell
+def run_population(
+    SyntheticInitialDistribution,
+    benchmark_directory,
+    initial_quadrature,
+    load_population_policy,
+    mo,
+    np,
+    population_settings,
+    simulate_population,
+):
+    mo.stop(population_settings.value is None, mo.md("Choose settings and submit to simulate a cohort's mass through its full lifecycle."))
+    from blinder_weiss.distribution import DistributionGrid
+
+    _population_inputs = population_settings.value
+    population_solution = load_population_policy(benchmark_directory / "bicubic_asset121_fine")
+    _population_config = population_solution.config
+    population_law = SyntheticInitialDistribution(
+        correlation=_population_inputs["correlation"],
+        asset_floor_mass=_population_inputs["floor_mass"],
+    )
+    population_initial_nodes = initial_quadrature(
+        population_law, nodes_per_dimension=_population_inputs["quadrature_order"],
+        asset_floor=_population_config.asset_minimum,
+    )
+    _population_n = _population_inputs["transport_resolution"]
+    population_grid = DistributionGrid(
+        _population_config.asset_minimum,
+        _population_config.asset_minimum
+        + (_population_config.asset_maximum - _population_config.asset_minimum)
+          * np.linspace(0.0, 1.0, _population_n)[1:] ** _population_config.asset_grid_curvature,
+        np.linspace(_population_config.log_human_capital_minimum,
+                    _population_config.log_human_capital_maximum, _population_n),
+    )
+    population_result = simulate_population(
+        population_solution, population_initial_nodes, backend=_population_inputs["backend"],
+        participation_hours_threshold=0.02, distribution_grid=population_grid,
+        store_snapshots=True,
+    )
+    mo.md(f"**Completed {population_result.backend}:** "
+          f"{len(population_result.state_moments.time) - 1} decision periods; "
+          f"maximum mass drift {population_result.diagnostics['maximum_mass_drift']:.2e}. "
+          "The initial point atom at (A, K) = (5, 1) has probability 0.05; "
+          "the remaining probability is continuous after accounting for the selected floor mass.")
+    return
+
+
+@app.cell(hide_code=True)
+def population_age_control(mo):
+    population_age = mo.ui.slider(0, 70, step=0.5, value=25,
+                                  label="Model age for distribution view")
+    population_age
     return
 
 
