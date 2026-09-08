@@ -276,6 +276,30 @@ def main():
             baseline_evaluations[label] = CalibrationEvaluation(
                 params, population, objective, 0.0, elapsed, elapsed
             )
+            report["resolutions"][label] = {
+                "status": "running",
+                "periods": count,
+                "quadrature_order": order,
+                "asset_nodes": solution.config.asset_nodes,
+                "human_capital_nodes": solution.config.human_capital_nodes,
+                "baseline_loss_against_fixed_target": objective.loss,
+                "fit_trace": [],
+            }
+            checkpoint()
+
+            def record_evaluation(item):
+                record = {
+                    "parameter": float(getattr(item.params, args.parameter)),
+                    "loss": item.objective.loss,
+                    "seconds": item.total_seconds,
+                }
+                report["resolutions"][label]["fit_trace"].append(record)
+                print(
+                    json.dumps({"phase": "fit evaluation", "resolution": label, **record}),
+                    flush=True,
+                )
+                checkpoint()
+
             fit, fit_timing = timer.measure(
                 lambda solution=solution, nodes=nodes: fit_scalar_calibration(
                     args.parameter,
@@ -286,10 +310,12 @@ def main():
                     targets=targets,
                     parameter_tolerance=args.parameter_tolerance,
                     max_evaluations=args.fit_evaluations,
+                    evaluation_callback=record_evaluation,
                 )
             )
             fitted[label] = (float(fit.x), bool(fit.success))
             report["resolutions"][label] = {
+                "status": "completed",
                 "periods": count,
                 "quadrature_order": order,
                 "asset_nodes": solution.config.asset_nodes,

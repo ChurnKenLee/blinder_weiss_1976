@@ -488,6 +488,7 @@ def test_scalar_fit_keeps_incumbent_and_preserves_search_termination(monkeypatch
         return SimpleNamespace(params=params, objective=SimpleNamespace(loss=loss))
 
     monkeypatch.setattr(calibration, "evaluate_calibration", objective)
+    recorded = []
     fit = calibration.fit_scalar_calibration(
         "leisure_weight",
         (0.9, 1.1),
@@ -496,7 +497,9 @@ def test_scalar_fit_keeps_incumbent_and_preserves_search_termination(monkeypatch
         initial_nodes=initial_quadrature(nodes_per_dimension=2, asset_floor=0.001),
         targets=synthetic_targets(),
         max_evaluations=30,
+        evaluation_callback=recorded.append,
     )
+    assert recorded == fit.evaluations
     assert fit.success
     assert fit.x == 1.0 and fit.fun == 0.0
     assert fit.selection_source == "initial_parameter"

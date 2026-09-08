@@ -7,6 +7,7 @@ exercise checks the numerical pipeline, not empirical identification.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, replace
 from time import perf_counter
 from typing import Any, Literal
@@ -214,6 +215,7 @@ def fit_scalar_calibration(
     distribution_grid: Any = None,
     parameter_tolerance: float = 1e-3,
     max_evaluations: int = 30,
+    evaluation_callback: Callable[[CalibrationEvaluation], None] | None = None,
 ) -> Any:
     """Bounded derivative-free one-parameter fit with recorded evaluations.
 
@@ -252,6 +254,8 @@ def fit_scalar_calibration(
             distribution_grid=distribution_grid,
         )
         evaluations.append(evaluation)
+        if evaluation_callback is not None:
+            evaluation_callback(evaluation)
         return evaluation.objective.loss
 
     initial_value = float(getattr(params, parameter))
