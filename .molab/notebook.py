@@ -294,6 +294,60 @@ def policy_jitter_comparison(
     return
 
 
+@app.cell
+def boundary_refinement_view(
+    benchmark_directory,
+    github_sync_refresh,
+    json,
+    mo,
+    np,
+    plt,
+):
+    github_sync_refresh
+    _refinement_folder = benchmark_directory / "boundary_time_refinement"
+    _state_refinement = benchmark_directory / "boundary_state_refinement"
+    if (_state_refinement / "report.json").exists():
+        _candidate_report = json.loads((_state_refinement / "report.json").read_text())
+        if len(_candidate_report.get("runs", [])) >= 4:
+            _refinement_folder = _state_refinement
+    boundary_refinement_report = json.loads((_refinement_folder / "report.json").read_text())
+    _refinement_rows = []
+    for _run in boundary_refinement_report["runs"]:
+        _audit = _run["continuous_asset_path_audit"]
+        _refinement_rows.append({
+            "Method": _run["config"]["asset_feasibility"],
+            "Periods": _run["config"]["periods"],
+            "Asset nodes": _run["config"]["asset_nodes"],
+            "Maximum numerical-floor violation": _audit["maximum_numerical_floor_violation"],
+            "Retirement consumption Euler RMS / year": _run["weighted_retirement_euler_rms_per_year"],
+            "Maximum value vs realized-utility gap": _run["maximum_absolute_value_gap"],
+        })
+    _refinement_figure, _refinement_axes = plt.subplots(1, 2, figsize=(12, 3.8), constrained_layout=True)
+    with np.load(_refinement_folder / "paths.npz") as _refinement_arrays:
+        _atom = int(np.flatnonzero(_refinement_arrays["initial_component"] == "point_atom")[0])
+        for _i, _run in enumerate(boundary_refinement_report["runs"]):
+            _label = f"{_run['config']['asset_feasibility']}, {_run['config']['periods']} periods, {_run['config']['asset_nodes']} assets"
+            _time = _refinement_arrays[f"run_{_i}_time"]
+            _controls = _refinement_arrays[f"run_{_i}_controls"]
+            _refinement_axes[0].plot(_time[:-1], _controls[:, _atom, 0], label=_label, linewidth=1.2)
+            _refinement_axes[1].plot(_time, _refinement_arrays[f"run_{_i}_native_floor_mass"], label=_label)
+    _refinement_axes[0].set(title="Consumption: reference type A=5, K=1", xlabel="Model time", xlim=(45, 70))
+    _refinement_axes[1].set(title="Endpoint floor mass: fixed initial-law stress test", xlabel="Model time", xlim=(0, 25))
+    for _axis in _refinement_axes:
+        _axis.grid(alpha=0.2)
+        _axis.legend(fontsize=7)
+    plt.close(_refinement_figure)
+    mo.vstack([
+        mo.md("**Constraint and refinement checks.** These comparisons keep the same initial distribution, including its 5% point atom, "
+              "and compare moments at shared physical ages. Exact full-period feasibility removes the missed dips below the numerical floor. "
+              "Refining time alone increases consumption jitter on the fixed asset grid; the denser asset-grid experiment is reported separately. "
+              "A smaller floor violation is a feasibility result, while smoothness and calibration stability require their own checks."),
+        mo.ui.table(_refinement_rows, selection=None),
+        _refinement_figure,
+    ])
+    return
+
+
 @app.cell(hide_code=True)
 def continuum_intro(mo):
     mo.md(r"""
