@@ -2,9 +2,9 @@
 
 Arrays contain probability *masses*, never density samples. Row zero is the
 exact numerical asset-floor face; all remaining rows are strictly interior.
-The model's economic borrowing limit is zero, whereas the Bellman solver uses
-a positive epsilon floor. ``asset_floor_mass`` therefore refers to that
-numerical approximation, not a verified economic atom at zero.
+The benchmark's economic borrowing limit is zero, whereas the Bellman solver
+uses a positive epsilon floor. ``asset_floor_mass`` therefore refers to that
+numerical approximation, not a verified economic atom at the borrowing limit.
 
 The local transfer operator is independent of value interpolation. Interior
 destinations below the first interior asset node remain interior and are
@@ -478,8 +478,8 @@ def simulate_distribution(
         "completed_periods": int(np.sum(checks[:, 24])),
         "terminal_total_mass": float(np.sum(terminal)),
         "asset_floor": grid.asset_floor,
-        "economic_asset_floor": 0.0,
-        "asset_floor_is_numerical_approximation": grid.asset_floor > 0,
+        "economic_asset_floor": float(solution.params.asset_floor),
+        "asset_floor_is_numerical_approximation": grid.asset_floor > solution.params.asset_floor,
         "accepted_for_calibration_default": False,
     }
     if not np.all(checks[:, 24]):
