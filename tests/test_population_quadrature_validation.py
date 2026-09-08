@@ -91,6 +91,8 @@ def population(floor_mass):
     return SimpleNamespace(
         moments=SimpleNamespace(
             time=np.array([0.0, 0.5]),
+            assets=np.ones(2),
+            human_capital=np.ones(2),
             hours=np.zeros(2),
             participation=np.zeros(2),
             training_time=np.zeros(2),
@@ -110,7 +112,10 @@ def population(floor_mass):
 
 def test_native_floor_mass_comparison_keeps_endpoint_age_and_rejects_changed_mesh():
     actual, reference = population([0.1, 0.2, 0.1]), population([0.1, 0.05, 0.1])
+    actual.state_moments.assets[-1] += 0.4
     result = compare_native_profiles(actual, reference)
+    assert result["assets"]["maximum_absolute"] == pytest.approx(0.4)
+    assert result["assets"]["maximum_difference_model_age"] == 1.0
     floor = result["asset_floor_mass"]
     assert floor["maximum_absolute"] == pytest.approx(0.15)
     assert floor["maximum_difference_model_age"] == 0.5

@@ -30,6 +30,19 @@ from blinder_weiss.continuum import (
 )
 from validate_calibration_grid import error_metrics, load_solution
 
+_STATE_MOMENTS = {
+    "assets",
+    "human_capital",
+    "log_human_capital",
+    "asset_floor_mass",
+    "near_asset_floor_mass",
+}
+
+
+def moment_owner(population, name):
+    """State means include the terminal boundary, even when control moments duplicate them."""
+    return population.state_moments if name in _STATE_MOMENTS else population.moments
+
 
 def restore_problem(
     report: dict[str, Any],
@@ -95,8 +108,8 @@ def compare_native_profiles(actual, reference) -> dict[str, Any]:
     """Compare every native age directly; state boundary probabilities are not interpolated."""
     result = {}
     for name in MOMENT_UNITS:
-        owner = actual.moments if hasattr(actual.moments, name) else actual.state_moments
-        other = reference.moments if hasattr(reference.moments, name) else reference.state_moments
+        owner = moment_owner(actual, name)
+        other = moment_owner(reference, name)
         values, other_values = getattr(owner, name), getattr(other, name)
         if values is None and other_values is None:
             continue
@@ -161,7 +174,7 @@ def main():
         raise RuntimeError("policy report changed while loading; retry from a stable artifact")
     model_root = Path(__file__).resolve().parents[1] / "code/jax/blinder_weiss"
     report: dict[str, Any] = {
-        "purpose": "saved-policy population quadrature refinement against fixed calibration targets",
+        "purpose": "saved-policy quadrature refinement against fixed calibration targets",
         "status": "running",
         "bellman_solves_performed": 0,
         "parameter_fits_performed": 0,
