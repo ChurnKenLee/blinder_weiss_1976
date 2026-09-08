@@ -10,11 +10,13 @@ import argparse
 import gzip
 import hashlib
 import json
+import sys
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 from pathlib import Path
 
-from ipums_download import atomic_json, now
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from ipums_download import atomic_json, now  # noqa: E402
 
 AGE_BINS = ((18, 24), (25, 34), (35, 44), (45, 54), (55, 64), (65, 74), (75, 79), (80, 84))
 
