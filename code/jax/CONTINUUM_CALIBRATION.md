@@ -108,7 +108,13 @@ and acceptance criteria remain in [CONTINUUM_FORWARD_MEMO.md](../../CONTINUUM_FO
 
 ## Boundary accuracy in the lifecycle benchmark
 
-The rounding fix does not eliminate all floor-mass cycling. At the initial
+The rounding fix protects a separate reproducible arithmetic failure. It did
+not materially change this lifecycle benchmark's floor-mass profiles (maximum
+change below 4.2e-17); attributing the benchmark's large discrepancy to rounding
+was incorrect. The measured mechanism is the first-cell remapping below.
+See the [policy probe](../../output/solver_benchmarks/continuum_gpu/boundary_probe.md).
+
+At the initial
 state `(A,log K)=(0.0001,0)`, the recovered consumption binds the first
 within-period checkpoint. Later earnings growth leaves endpoint assets about
 0.0015003 above the floor. This is a real positive destination, roughly twelve
