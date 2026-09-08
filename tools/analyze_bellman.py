@@ -28,7 +28,7 @@ def load_solution(folder: Path) -> tuple[BellmanSolution, dict]:
     with np.load(folder / "policies.npz") as data:
         solution = BellmanSolution(
             params=ModelParams(**report["params"]),
-            config=BellmanConfig(**report["config"]),
+            config=BellmanConfig(**{"asset_feasibility": "checkpoints", **report["config"]}),
             time=data["time"],
             asset_grid=data["A"],
             log_human_capital_grid=data["y"],

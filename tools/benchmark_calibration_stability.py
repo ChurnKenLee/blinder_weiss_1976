@@ -117,7 +117,7 @@ def main():
         args.moment_tolerance, args.loss_tolerance, args.fit_tolerance
     )
     report = {
-        "purpose": "synthetic calibration stability under quadrature/time refinement and initial-law sensitivity",
+        "purpose": "synthetic calibration stability and initial-law sensitivity",
         "empirical_calibration": False,
         "continuum_convergence_certified": False,
         "config": asdict(base_config),
@@ -129,7 +129,7 @@ def main():
         "quadrature_orders": orders,
         "near_asset_floor_width": args.near_floor_width,
         "thresholds": asdict(thresholds),
-        "tolerance_provenance": "explicit illustrative numerical tolerances, not survey standard errors",
+        "tolerance_provenance": "illustrative numerical tolerances, not survey standard errors",
         "source_sha256": {
             path.name: hashlib.sha256(path.read_bytes()).hexdigest()
             for path in model_root.glob("*.py")

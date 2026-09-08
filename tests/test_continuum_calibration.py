@@ -267,3 +267,177 @@ def test_failure_diagnostics_can_be_saved_as_strict_json():
     assert decoded["diagnostics"]["array"] == [0.0, None, None, None]
     assert decoded["diagnostics"]["scalar"] is None
     assert decoded["diagnostics"]["nested"] == [None]
+
+
+def test_default_has_no_interior_atom_and_stress_case_is_explicit():
+    from blinder_weiss.continuum import synthetic_initial_scenarios
+
+    cases = synthetic_initial_scenarios()
+    assert cases["baseline"].atoms == ()
+    assert cases["point_atom_stress"].atoms == (InitialAtom(5.0, 1.0, 0.05),)
+    baseline = initial_quadrature(cases["baseline"], nodes_per_dimension=4, asset_floor=0.001)
+    stress = initial_quadrature(
+        cases["point_atom_stress"], nodes_per_dimension=4, asset_floor=0.001
+    )
+    assert np.sum(baseline.component == "point_atom") == 0
+    assert stress.weights[stress.component == "point_atom"].sum() == pytest.approx(0.05)
+    assert baseline.initial_law == cases["baseline"]
+    assert baseline.quadrature_order == 4
+
+
+def test_near_floor_band_includes_floor_and_retains_distinct_interior_mass(small_solution):
+    floor = small_solution.config.asset_minimum
+    law = SyntheticInitialDistribution(
+        asset_floor_mass=0.0,
+        atoms=(
+            InitialAtom(floor, 1.0, 0.2),
+            InitialAtom(floor + 0.005, 1.0, 0.3),
+            InitialAtom(0.5, 1.0, 0.5),
+        ),
+    )
+    nodes = initial_quadrature(law, nodes_per_dimension=2, asset_floor=floor)
+    result = simulate_population(
+        small_solution, nodes, participation_hours_threshold=0.02, near_asset_floor_width=0.01
+    )
+    assert result.state_moments.asset_floor_mass[0] == pytest.approx(0.2)
+    assert result.state_moments.near_asset_floor_mass is not None
+    assert result.state_moments.near_asset_floor_mass[0] == pytest.approx(0.5)
+    assert result.state_moments.near_asset_floor_width == 0.01
+    target = CalibrationTargets(
+        (
+            AgeMomentTarget(
+                "near_asset_floor_mass",
+                np.array([0.0]),
+                np.array([0.5]),
+                0.02,
+                1.0,
+                MOMENT_UNITS["near_asset_floor_mass"],
+            ),
+        ),
+        0.0,
+        0.02,
+        "synthetic band-definition test",
+        near_asset_floor_width=0.01,
+    )
+    assert weighted_age_moment_loss(result, target).loss == 0.0
+    with pytest.raises(ValueError, match="require a finite positive"):
+        weighted_age_moment_loss(result, replace(target, near_asset_floor_width=None))
+    with pytest.raises(ValueError, match="widths must match"):
+        weighted_age_moment_loss(result, replace(target, near_asset_floor_width=0.02))
+    with pytest.raises(ValueError, match="near_asset_floor_width"):
+        simulate_population(
+            small_solution, nodes, participation_hours_threshold=0.02, near_asset_floor_width=-0.01
+        )
+
+
+def test_initial_floor_share_fit_reuses_policy_and_recovers_initial_mean(small_solution):
+    from blinder_weiss.calibration import fit_initial_law_calibration
+
+    true_share = 0.08
+    expected_assets = 5.0 * (1.0 - true_share) + small_solution.config.asset_minimum * true_share
+    targets = CalibrationTargets(
+        (
+            AgeMomentTarget(
+                "assets",
+                np.array([0.0]),
+                np.array([expected_assets]),
+                0.1,
+                1.0,
+                MOMENT_UNITS["assets"],
+            ),
+        ),
+        0.0,
+        0.02,
+        "synthetic known initial mean",
+    )
+    fitted = fit_initial_law_calibration(
+        "asset_floor_mass",
+        (0.0, 0.15),
+        solution=small_solution,
+        law=SyntheticInitialDistribution(),
+        targets=targets,
+        nodes_per_dimension=2,
+        parameter_tolerance=1e-6,
+    )
+    assert fitted.success
+    assert fitted.x == pytest.approx(true_share, abs=1e-6)
+    assert fitted.best_evaluation.population.simulation.solution is small_solution
+    assert all(item.population.simulation.solution is small_solution for item in fitted.evaluations)
+    with pytest.raises(ValueError, match="explicit valid atom_index"):
+        fit_initial_law_calibration(
+            "atom_mass",
+            (0.0, 0.1),
+            solution=small_solution,
+            law=SyntheticInitialDistribution(),
+            targets=targets,
+            nodes_per_dimension=2,
+        )
+    with pytest.raises(ValueError, match="correlation"):
+        fit_initial_law_calibration(
+            "correlation",
+            (-0.5, 0.1),
+            solution=small_solution,
+            law=SyntheticInitialDistribution(),
+            targets=targets,
+            nodes_per_dimension=2,
+        )
+
+
+def test_acceptance_requires_distinct_resolutions_same_law_and_stable_fit():
+    from dataclasses import asdict
+    from types import SimpleNamespace
+
+    from blinder_weiss.calibration import (
+        CalibrationEvaluation,
+        NumericalAcceptanceThresholds,
+        compare_calibration_resolutions,
+    )
+
+    params = benchmark_params()
+    config = BellmanConfig()
+    base = fake_population()
+    reference = replace(
+        base,
+        simulation=SimpleNamespace(solution=SimpleNamespace(config=config)),
+        diagnostics={"initial_law": asdict(SyntheticInitialDistribution()), "quadrature_order": 16},
+    )
+    coarse = replace(
+        reference,
+        moments=replace(reference.moments, hours=reference.moments.hours + 0.001),
+        diagnostics={**reference.diagnostics, "quadrature_order": 8},
+    )
+    targets = synthetic_targets()
+
+    def evaluation(population):
+        return CalibrationEvaluation(
+            params, population, weighted_age_moment_loss(population, targets), 0.0, 0.0, 0.0
+        )
+
+    kwargs = dict(
+        fitted_parameters=(1.0, 1.001),
+        optimizer_success=(True, True),
+        thresholds=NumericalAcceptanceThresholds(0.02, 0.03, 0.002),
+    )
+    passed = compare_calibration_resolutions(
+        evaluation(coarse), evaluation(reference), targets, **kwargs
+    )
+    assert passed["passed"]
+    same_setup = compare_calibration_resolutions(
+        evaluation(reference), evaluation(reference), targets, **kwargs
+    )
+    assert not same_setup["passed"]
+    assert not same_setup["criteria"]["distinct_numerical_resolutions"]
+    wrong_law = replace(
+        coarse,
+        diagnostics={
+            **coarse.diagnostics,
+            "initial_law": asdict(SyntheticInitialDistribution(correlation=0)),
+        },
+    )
+    assert not compare_calibration_resolutions(
+        evaluation(wrong_law), evaluation(reference), targets, **kwargs
+    )["passed"]
+    unstable = {**kwargs, "fitted_parameters": (0.9, 1.0)}
+    assert not compare_calibration_resolutions(
+        evaluation(coarse), evaluation(reference), targets, **unstable
+    )["passed"]
