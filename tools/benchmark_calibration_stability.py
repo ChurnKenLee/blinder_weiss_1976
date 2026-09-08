@@ -287,7 +287,7 @@ def main():
             }
             checkpoint()
 
-            def record_evaluation(item):
+            def record_evaluation(item, label=label):
                 record = {
                     "parameter": float(getattr(item.params, args.parameter)),
                     "loss": item.objective.loss,
