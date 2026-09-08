@@ -30,9 +30,11 @@ from .bellman import (
     BellmanConfig,
     BellmanSolution,
     _cached_greedy_kernels,
+    _exprel,
     constant_control_transition,
     maximum_feasible_consumption,
 )
+from .boundary import _FLOOR_CONTACT_ULPS, endpoint_floor_contact
 from .model import ModelParams, effective_earnings_share
 from .population import CohortMoments
 
@@ -342,12 +344,9 @@ def _cached_distribution_scan(
                 states[:, 0], states[:, 1], hours, training, params, step,
                 config.asset_minimum, 1,
             )
-            # Exact endpoint binding identifies a contact even if cancellation
-            # leaves a tiny positive destination. Nearby slack interior controls
-            # receive no floor tag and cannot manufacture boundary probability.
-            floor_destination = (destinations[:, 0] <= config.asset_minimum) | (
-                (consumption >= endpoint_capacity)
-                & (jnp.abs(destinations[:, 0] - config.asset_minimum) <= _DOMAIN_TOLERANCE)
+            floor_destination = endpoint_floor_contact(
+                destinations[:, 0], config.asset_minimum, consumption, endpoint_capacity,
+                step * _exprel(params.interest_rate * step),
             )
             indices, weights, valid, violations, lower_remap, remap_error = _transport_stencil(
                 interior_assets, log_k_nodes, jnp.asarray(config.asset_minimum),
@@ -495,6 +494,8 @@ def simulate_distribution(
         "asset_floor": grid.asset_floor,
         "economic_asset_floor": float(solution.params.asset_floor),
         "asset_floor_is_numerical_approximation": grid.asset_floor > solution.params.asset_floor,
+        "asset_floor_contact": "binding endpoint within scaled float64 arithmetic budget",
+        "asset_floor_contact_error_multiplier": _FLOOR_CONTACT_ULPS,
         "accepted_for_calibration_default": False,
     }
     if not np.all(checks[:, 24]):
