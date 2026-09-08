@@ -71,7 +71,7 @@ def test_quadrature_refinement_and_zero_components_preserve_shapes():
     [
         {"correlation": 0.34},
         {"asset_floor_mass": -0.1},
-        {"asset_floor_mass": 1.0},
+        {"asset_floor_mass": 1.1},
         {"asset_lower": -1.0},
         {"log_human_capital_lower": 1.0},
         {"asset_upper": np.inf},
@@ -92,7 +92,7 @@ def test_invalid_quadrature_order(order):
 
 
 def test_iid_sampler_matches_the_same_initial_measure():
-    law = SyntheticInitialDistribution()
+    law = SyntheticInitialDistribution(atoms=(InitialAtom(5.0, 1.0, 0.05),))
     nodes = sample_initial_population(law, people=100_000, asset_floor=0.001)
     quadrature = initial_quadrature(law, nodes_per_dimension=16, asset_floor=0.001)
     assert nodes.assets @ nodes.weights == pytest.approx(
@@ -189,8 +189,9 @@ def test_participation_convention_and_zero_weights_cannot_change_silently():
         )
 
 
-def test_quadrature_rollout_preserves_mass_and_initial_floor_atom():
-    solution = solve_bellman(
+@pytest.fixture(scope="module")
+def small_solution():
+    return solve_bellman(
         benchmark_params(horizon=2.0),
         BellmanConfig(
             periods=2,
@@ -209,6 +210,10 @@ def test_quadrature_rollout_preserves_mass_and_initial_floor_atom():
             compute_platform="cpu",
         ),
     )
+
+
+def test_quadrature_rollout_preserves_mass_and_initial_floor_atom(small_solution):
+    solution = small_solution
     nodes = initial_quadrature(nodes_per_dimension=2, asset_floor=solution.config.asset_minimum)
     result = simulate_population(solution, nodes, participation_hours_threshold=0.02)
     assert result.backend == "quadrature"

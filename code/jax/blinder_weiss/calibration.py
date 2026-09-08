@@ -422,6 +422,8 @@ def compare_calibration_resolutions(
     tolerance_values = np.asarray(list(asdict(thresholds).values()))
     if not np.all(np.isfinite(tolerance_values)) or np.any(tolerance_values < 0):
         raise ValueError("numerical acceptance tolerances must be finite and nonnegative")
+    if len(optimizer_success) != 2:
+        raise ValueError("two optimizer success flags are required")
     if len(fitted_parameters) != 2 or not np.all(np.isfinite(fitted_parameters)):
         raise ValueError("two finite fitted parameter values are required")
     coarse_loss = weighted_age_moment_loss(coarse.population, targets)
@@ -474,5 +476,5 @@ def compare_calibration_resolutions(
         "maximum_standardized_moment_difference": max_standardized,
         "absolute_loss_difference": loss_difference,
         "absolute_fitted_parameter_difference": parameter_difference,
-        "scope": "local synthetic numerical stability; not empirical identification or continuum certification",
+        "scope": "local synthetic stability; no empirical or continuum certification",
     }

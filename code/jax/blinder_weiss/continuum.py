@@ -17,7 +17,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .bellman import BellmanConfig, BellmanSolution, _exprel, maximum_feasible_consumption
+from .bellman import BellmanConfig, BellmanSolution, _exprel, endpoint_consumption_capacity
 from .boundary import _FLOOR_CONTACT_ULPS, endpoint_floor_contact
 from .population import CohortMoments, cohort_moments, simulate_cohort
 
@@ -275,7 +275,7 @@ def _cached_floor_contacts(config: BellmanConfig) -> Any:
 
     @jax.jit
     def contacts(params, states, controls):
-        endpoint_capacity = maximum_feasible_consumption(
+        endpoint_capacity = endpoint_consumption_capacity(
             states[:-1, :, 0],
             states[:-1, :, 1],
             controls[..., 1],
@@ -283,7 +283,6 @@ def _cached_floor_contacts(config: BellmanConfig) -> Any:
             params,
             params.horizon / config.periods,
             config.asset_minimum,
-            1,
         )
         step = params.horizon / config.periods
         consumption_factor = step * _exprel(params.interest_rate * step)
@@ -421,6 +420,6 @@ def simulate_population(
         "asset_floor_contact_roundoff_multiplier": _FLOOR_CONTACT_ULPS,
         "nodes": cohort.weights.size,
         "near_asset_floor_width": near_asset_floor_width,
-        "near_asset_floor_definition": "A in [numerical floor, numerical floor + width]; includes exact floor",
+        "near_asset_floor_definition": "[numerical floor, floor + width], including exact floor",
     }
     return PopulationResult(backend, moments, state_moments, diagnostics, cohort)
