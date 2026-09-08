@@ -3,6 +3,7 @@
 import importlib.util
 import sys
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pytest
@@ -49,7 +50,7 @@ def test_analytic_minima_match_independent_adaptive_ode_and_scalar_search(rate, 
             dense_output=True,
         )
         assert solution.success
-        optimized = minimize_scalar(
+        optimized: Any = minimize_scalar(
             lambda t, solution=solution: float(solution.sol(t)[0]),
             bounds=(0, 0.7),
             method="bounded",
