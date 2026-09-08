@@ -4,6 +4,7 @@
 These profiles are inputs to measurement design, not automatically accepted
 model calibration targets. No individual survey records are written or printed.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -27,7 +28,8 @@ def dictionary(directory: Path) -> tuple[dict, dict]:
     for node in ET.parse(next(directory.glob("*.xml"))).getroot().findall(".//{*}var"):
         location = node.find("{*}location")
         columns[node.attrib["name"]] = (
-            int(location.attrib["StartPos"]) - 1, int(location.attrib["EndPos"]),
+            int(location.attrib["StartPos"]) - 1,
+            int(location.attrib["EndPos"]),
             int(node.attrib.get("dcml", "0")),
         )
     return columns, manifest
@@ -46,8 +48,10 @@ def records(directory: Path, names: list[str]):
             raw = raw.rstrip(b"\r\n")
             if len(raw) != width:
                 raise ValueError("Unexpected fixed-width record length")
-            yield {name: float(raw[columns[name][0]:columns[name][1]]) / 10 ** columns[name][2]
-                   for name in names}
+            yield {
+                name: float(raw[columns[name][0] : columns[name][1]]) / 10 ** columns[name][2]
+                for name in names
+            }
 
 
 def accumulate(groups, age: int, sex: int, weight: float, observables: dict):
@@ -72,10 +76,14 @@ def accumulate(groups, age: int, sex: int, weight: float, observables: dict):
 def finish(groups):
     rows = []
     for (sex, band), group in sorted(groups.items()):
-        result = {"sex": sex, "age_band": band, "records": int(group["record_count"]),
-                  "survey_weight_sum": group["weight"],
-                  "effective_sample_size_weights_only": group["weight"] ** 2 / group["squared_weight"],
-                  "weighted_mean_recorded_age": group["weighted_age"] / group["weight"]}
+        result = {
+            "sex": sex,
+            "age_band": band,
+            "records": int(group["record_count"]),
+            "survey_weight_sum": group["weight"],
+            "effective_sample_size_weights_only": group["weight"] ** 2 / group["squared_weight"],
+            "weighted_mean_recorded_age": group["weighted_age"] / group["weight"],
+        }
         for name in group:
             if name.endswith("_numerator"):
                 field = name.removesuffix("_numerator")
@@ -98,13 +106,24 @@ def acs_profiles(directory: Path):
             excluded_institutions += 1
             continue
         status, hours = int(row["EMPSTAT"]), row["UHRSWORK"]
-        accumulate(groups, int(row["AGE"]), int(row["SEX"]), row["PERWT"], {
-            "employment_rate": float(status == 1) if status in (1, 2, 3) else None,
-            "usual_weekly_hours_among_reporters": hours if 1 <= hours <= 99 else None,
-            "hours_topcoded_share_among_reporters": float(hours == 99) if 1 <= hours <= 99 else None,
-        })
-    return {"source_records": count, "excluded_institutional_records_all_ages": excluded_institutions,
-            "profiles": finish(groups)}
+        accumulate(
+            groups,
+            int(row["AGE"]),
+            int(row["SEX"]),
+            row["PERWT"],
+            {
+                "employment_rate": float(status == 1) if status in (1, 2, 3) else None,
+                "usual_weekly_hours_among_reporters": hours if 1 <= hours <= 99 else None,
+                "hours_topcoded_share_among_reporters": float(hours == 99)
+                if 1 <= hours <= 99
+                else None,
+            },
+        )
+    return {
+        "source_records": count,
+        "excluded_institutional_records_all_ages": excluded_institutions,
+        "profiles": finish(groups),
+    }
 
 
 def atus_profiles(directory: Path):
@@ -117,8 +136,9 @@ def atus_profiles(directory: Path):
             raise ValueError("This measurement specification requires 2024")
         key = (int(row["YEAR"]), int(row["CASEID"]))
         attributes = (int(row["AGE"]), int(row["SEX"]), row["WT06"], int(row["EMPSTAT"]))
-        person = respondents.setdefault(key, {"attributes": attributes, "total": 0,
-                                              "working": 0, "education": 0})
+        person = respondents.setdefault(
+            key, {"attributes": attributes, "total": 0, "working": 0, "education": 0}
+        )
         if person["attributes"] != attributes:
             raise ValueError("Respondent attributes differ across activities")
         duration, activity = int(row["DURATION"]), int(row["ACTIVITY"])
@@ -132,49 +152,98 @@ def atus_profiles(directory: Path):
         if person["total"] != 1440:
             raise ValueError("Diary must total 1440 minutes")
         age, sex, weight, status = person["attributes"]
-        accumulate(groups, age, sex, weight, {
-            "employment_rate": float(status in (1, 2)) if status in (1, 2, 3, 4, 5) else None,
-            "working_minutes_per_day": person["working"],
-            "education_minutes_per_day": person["education"],
-        })
-    return {"source_activity_records": activity_count, "source_respondents": len(respondents),
-            "all_diaries_1440_minutes": True, "profiles": finish(groups)}
+        accumulate(
+            groups,
+            age,
+            sex,
+            weight,
+            {
+                "employment_rate": float(status in (1, 2)) if status in (1, 2, 3, 4, 5) else None,
+                "working_minutes_per_day": person["working"],
+                "education_minutes_per_day": person["education"],
+            },
+        )
+    return {
+        "source_activity_records": activity_count,
+        "source_respondents": len(respondents),
+        "all_diaries_1440_minutes": True,
+        "profiles": finish(groups),
+    }
 
 
 def build(root: Path, output: Path):
     report = {
-        "created_at": now(), "status": "descriptive_profiles_pending_model_measurement_mapping",
-        "year": 2024, "age_bins": AGE_BINS,
+        "created_at": now(),
+        "status": "descriptive_profiles_pending_model_measurement_mapping",
+        "year": 2024,
+        "age_bins": AGE_BINS,
         "measurement": {
             "sex_profiles": "All, men, and women separately; no weighting across profile rows",
-            "age_topcoding": "ATUS code80 pools ages80-84; shown as a band, never interpreted as exact age80",
+            "age_topcoding": (
+                "ATUS code80 pools ages80-84; shown as a band, never interpreted "
+                "as exact age80"
+            ),
             "acs_universe": "All respondents age18-84 excluding institutional group quarters GQ=3",
             "atus_universe": "ATUS respondent-day population age18-84; WT06 applied once per diary",
             "employment": "ACS EMPSTAT=1; ATUS EMPSTAT in {1,2}; nonemployment kept in denominator",
-            "acs_hours": "UHRSWORK 1..99 only;0 N/A excluded with coverage reported;99 retained as topcoded",
-            "acs_reference_period": "Employment is reference-week status; usual hours describe weeks worked in preceding12months",
-            "atus_working": "ACTIVITY0501xx including waiting/security; excludes work travel and other work-related categories",
-            "atus_education": "ACTIVITY06xxxx; broader than productive training and incomplete for learning on the job",
-            "standard_errors": "Not estimated; weights-only effective sample size is not a survey variance estimate",
-            "unobserved_states": "Neither extract supplies model assets, consumption, or latent human capital",
-            "model_mapping": "No hours-endowment, dollar normalization, initial asset law, or calibration loss weights imposed",
+            "acs_hours": (
+                "UHRSWORK 1..99 only;0 N/A excluded with coverage reported;99 "
+                "retained as topcoded"
+            ),
+            "acs_reference_period": (
+                "Employment is reference-week status; usual hours describe weeks "
+                "worked in preceding12months"
+            ),
+            "atus_working": (
+                "ACTIVITY0501xx including waiting/security; excludes work travel "
+                "and other work-related categories"
+            ),
+            "atus_education": (
+                "ACTIVITY06xxxx; broader than productive training and incomplete "
+                "for learning on the job"
+            ),
+            "standard_errors": (
+                "Not estimated; weights-only effective sample size is not a "
+                "survey variance estimate"
+            ),
+            "unobserved_states": (
+                "Neither extract supplies model assets, consumption, or latent "
+                "human capital"
+            ),
+            "model_mapping": (
+                "No hours-endowment, dollar normalization, initial asset law, or "
+                "calibration loss weights imposed"
+            ),
         },
-        "sources": {"acs": "https://usa.ipums.org/usa-action/variables/EMPSTAT",
-                    "hours": "https://usa.ipums.org/usa-action/variables/UHRSWORK",
-                    "atus": "https://www.atusdata.org/atus-action/variables/ACTIVITY"},
+        "sources": {
+            "acs": "https://usa.ipums.org/usa-action/variables/EMPSTAT",
+            "hours": "https://usa.ipums.org/usa-action/variables/UHRSWORK",
+            "atus": "https://www.atusdata.org/atus-action/variables/ACTIVITY",
+        },
         "acs": acs_profiles(root / "raw/usa_00041"),
         "atus": atus_profiles(root / "raw/atus_00004"),
-        "source_manifests": {name: json.loads((root / "raw" / name / "manifest.json").read_text())["files"]
-                             for name in ("usa_00041", "atus_00004")},
+        "source_manifests": {
+            name: json.loads((root / "raw" / name / "manifest.json").read_text())["files"]
+            for name in ("usa_00041", "atus_00004")
+        },
     }
     atomic_json(output, report)
-    print(json.dumps({"output": str(output), "acs_records": report["acs"]["source_records"],
-                      "atus_respondents": report["atus"]["source_respondents"]}))
+    print(
+        json.dumps(
+            {
+                "output": str(output),
+                "acs_records": report["acs"]["source_records"],
+                "atus_respondents": report["atus"]["source_respondents"],
+            }
+        )
+    )
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("data/ipums"))
-    parser.add_argument("--output", type=Path, default=Path("output/calibration/empirical_age_profiles_2024.json"))
+    parser.add_argument(
+        "--output", type=Path, default=Path("output/calibration/empirical_age_profiles_2024.json")
+    )
     args = parser.parse_args()
     build(args.root, args.output)

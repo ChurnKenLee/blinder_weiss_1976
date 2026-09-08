@@ -355,7 +355,7 @@ def test_repeated_floor_policy_has_no_face_interior_alternation(solution, monkey
     distribution_module._cached_distribution_scan.cache_clear()
 
 
-def test_near_floor_band_is_distinct_from_atom_and_preserved_without_snapshots(solution, monkeypatch):
+def test_near_floor_band_is_distinct_from_atom_without_snapshots(solution, monkeypatch):
     floor = solution.config.asset_minimum
     grid = DistributionGrid(floor, np.array([floor + 0.01, 1.0, 2.0]),
                             np.array([-0.5, 0.0, 0.5]))
