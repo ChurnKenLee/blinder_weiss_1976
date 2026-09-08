@@ -489,7 +489,8 @@ def simulate_distribution(
                 "and recheck policies", diagnostics,
             )
         raise DistributionDomainError(
-            "forward distribution encountered nonfinite or infeasible occupied policies", diagnostics
+            "forward distribution encountered nonfinite or infeasible occupied policies",
+            diagnostics,
         )
     if diagnostics["maximum_mass_drift"] > 1e-10 or diagnostics["minimum_probability_mass"] < 0:
         raise RuntimeError("forward probability conservation or positivity check failed")
